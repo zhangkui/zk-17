@@ -1,6 +1,7 @@
 namespace ColdStorageForklift.Api.Hubs;
 
 using ColdStorageForklift.Core.Entities;
+using ColdStorageForklift.Services;
 using Microsoft.AspNetCore.SignalR;
 
 public class MonitoringHub : Hub

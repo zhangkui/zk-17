@@ -29,9 +29,14 @@ public class BlindSpotRepository : IBlindSpotRepository
         return await _context.BlindSpotZones.Where(b => b.ForkliftId == forkliftId).ToListAsync();
     }
 
-    public async Task<IReadOnlyList<BlindSpotZone>> GetBySeverityAsync(BlindSpotSeverity severity)
+    public async Task<IReadOnlyList<BlindSpotZone>> GetByRiskLevelAsync(RiskLevel riskLevel)
     {
-        return await _context.BlindSpotZones.Where(b => b.Severity == severity).ToListAsync();
+        return await _context.BlindSpotZones.Where(b => b.RiskLevel == riskLevel).ToListAsync();
+    }
+
+    public async Task<IReadOnlyList<BlindSpotZone>> GetActiveAsync()
+    {
+        return await _context.BlindSpotZones.Where(b => b.IsActive).ToListAsync();
     }
 
     public async Task<IReadOnlyList<BlindSpotZone>> GetAllAsync()

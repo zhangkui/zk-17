@@ -262,7 +262,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       medium: 'rgba(255,211,42,0.15)',
       low: 'rgba(46,213,115,0.1)'
     };
-    return map[level] || map.low;
+    return map[level] || map['low'];
   }
 
   private mockForklifts(): Forklift[] {

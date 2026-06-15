@@ -19,34 +19,42 @@ public class EventLogRepository : IEventLogRepository
         return await _context.EventLogs.FindAsync(id);
     }
 
-    public async Task<IReadOnlyList<EventLog>> GetByTypeAsync(EventLogType type)
+    public async Task<IReadOnlyList<EventLog>> GetByEventTypeAsync(EventType eventType)
     {
         return await _context.EventLogs
-            .Where(e => e.Type == type)
-            .OrderByDescending(e => e.CreatedAt)
+            .Where(e => e.EventType == eventType)
+            .OrderByDescending(e => e.OccurredAt)
             .ToListAsync();
     }
 
     public async Task<IReadOnlyList<EventLog>> GetByTimeRangeAsync(DateTime from, DateTime to)
     {
         return await _context.EventLogs
-            .Where(e => e.CreatedAt >= from && e.CreatedAt <= to)
-            .OrderByDescending(e => e.CreatedAt)
+            .Where(e => e.OccurredAt >= from && e.OccurredAt <= to)
+            .OrderByDescending(e => e.OccurredAt)
             .ToListAsync();
     }
 
-    public async Task<IReadOnlyList<EventLog>> GetByEntityIdAsync(Guid entityId)
+    public async Task<IReadOnlyList<EventLog>> GetByZoneIdAsync(Guid zoneId)
     {
         return await _context.EventLogs
-            .Where(e => e.RelatedEntityId == entityId)
-            .OrderByDescending(e => e.CreatedAt)
+            .Where(e => e.ZoneId == zoneId)
+            .OrderByDescending(e => e.OccurredAt)
+            .ToListAsync();
+    }
+
+    public async Task<IReadOnlyList<EventLog>> GetByForkliftIdAsync(Guid forkliftId)
+    {
+        return await _context.EventLogs
+            .Where(e => e.ForkliftId == forkliftId)
+            .OrderByDescending(e => e.OccurredAt)
             .ToListAsync();
     }
 
     public async Task<IReadOnlyList<EventLog>> GetRecentAsync(int count)
     {
         return await _context.EventLogs
-            .OrderByDescending(e => e.CreatedAt)
+            .OrderByDescending(e => e.OccurredAt)
             .Take(count)
             .ToListAsync();
     }
@@ -58,8 +66,17 @@ public class EventLogRepository : IEventLogRepository
         return eventLog;
     }
 
-    public async Task<int> GetCountByTypeAsync(EventLogType type)
+    public async Task<int> GetCountByEventTypeAsync(EventType eventType)
     {
-        return await _context.EventLogs.CountAsync(e => e.Type == type);
+        return await _context.EventLogs.CountAsync(e => e.EventType == eventType);
+    }
+
+    public async Task<Dictionary<int, int>> GetHourlyDistributionAsync(DateTime from, DateTime to)
+    {
+        return await _context.EventLogs
+            .Where(e => e.OccurredAt >= from && e.OccurredAt <= to)
+            .GroupBy(e => e.OccurredAt.Hour)
+            .Select(g => new { Hour = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Hour, x => x.Count);
     }
 }

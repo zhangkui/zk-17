@@ -16,19 +16,19 @@ import { Warning } from '../../core/models';
     <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
       <div class="stat-card">
         <div class="stat-label">极高预警</div>
-        <div class="stat-value red">{{ warnings.filter(w => w.level === 'critical').length }}</div>
+        <div class="stat-value red">{{ countByLevel('critical') }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">高级预警</div>
-        <div class="stat-value orange">{{ warnings.filter(w => w.level === 'high').length }}</div>
+        <div class="stat-value orange">{{ countByLevel('high') }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">中级预警</div>
-        <div class="stat-value" style="color:#ffd32a;">{{ warnings.filter(w => w.level === 'medium').length }}</div>
+        <div class="stat-value" style="color:#ffd32a;">{{ countByLevel('medium') }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">低级预警</div>
-        <div class="stat-value green">{{ warnings.filter(w => w.level === 'low').length }}</div>
+        <div class="stat-value green">{{ countByLevel('low') }}</div>
       </div>
     </div>
 
@@ -155,6 +155,10 @@ export class CollisionWarningComponent implements OnInit, AfterViewInit, OnDestr
       speed_violation: '超速违规'
     };
     return map[type] || type;
+  }
+
+  countByLevel(level: string): number {
+    return this.warnings.filter(w => w.level === level).length;
   }
 
   showDetail(w: Warning): void {

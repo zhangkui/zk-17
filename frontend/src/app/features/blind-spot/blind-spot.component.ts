@@ -126,8 +126,8 @@ export class BlindSpotComponent implements OnInit, AfterViewInit, OnDestroy {
     };
 
     for (const bs of this.blindSpots) {
-      ctx.fillStyle = riskColors[bs.riskLevel] || riskColors.low;
-      ctx.strokeStyle = strokeColors[bs.riskLevel] || strokeColors.low;
+      ctx.fillStyle = riskColors[bs.riskLevel] || riskColors['low'];
+      ctx.strokeStyle = strokeColors[bs.riskLevel] || strokeColors['low'];
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(bs.cx, bs.cy);
@@ -140,7 +140,7 @@ export class BlindSpotComponent implements OnInit, AfterViewInit, OnDestroy {
       ctx.translate(bs.cx, bs.cy);
       const midAngle = (bs.startAngle + bs.endAngle) / 2;
       const labelR = bs.radius * 0.6;
-      ctx.fillStyle = strokeColors[bs.riskLevel] || strokeColors.low;
+      ctx.fillStyle = strokeColors[bs.riskLevel] || strokeColors['low'];
       ctx.font = 'bold 11px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(bs.forkliftName, Math.cos(midAngle) * labelR, Math.sin(midAngle) * labelR);

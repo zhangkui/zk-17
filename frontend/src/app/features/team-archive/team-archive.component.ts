@@ -28,7 +28,7 @@ import { Team, TeamMember, EventRecord } from '../../core/models';
                   <div style="color:#e8f0fe;font-weight:500;">{{ t.name }}</div>
                   <div style="font-size:12px;color:#5a7a9a;">{{ shiftText(t.shift) }} · {{ t.members.length }}人</div>
                 </div>
-                <span class="risk-badge" [class]="t.safetyScore >= 90 ? 'low' : t.safetyScore >= 70 ? 'medium' : 'high'">{{ t.safetyScore }}分</span>
+                <span class="risk-badge" [class]="teamBadgeClass(t.safetyScore)">{{ t.safetyScore }}分</span>
               </li>
             }
           </ul>
@@ -105,11 +105,11 @@ import { Team, TeamMember, EventRecord } from '../../core/models';
                 </div>
                 <div>
                   <div style="font-size:12px;color:#5a7a9a;">极高事件</div>
-                  <div style="font-size:24px;font-weight:700;color:#ff4757;">{{ teamEvents.filter(e => e.level === 'critical').length }}</div>
+                  <div style="font-size:24px;font-weight:700;color:#ff4757;">{{ criticalEventCount() }}</div>
                 </div>
                 <div>
                   <div style="font-size:12px;color:#5a7a9a;">安全评分</div>
-                  <div style="font-size:24px;font-weight:700;" [style.color]="selectedTeam.safetyScore >= 90 ? '#2ed573' : selectedTeam.safetyScore >= 70 ? '#ffd32a' : '#ff4757'">{{ selectedTeam.safetyScore }}</div>
+                  <div style="font-size:24px;font-weight:700;" [style.color]="scoreColor()">{{ selectedTeam.safetyScore }}</div>
                 </div>
                 <div>
                   <div style="font-size:12px;color:#5a7a9a;">班次</div>
@@ -192,6 +192,23 @@ export class TeamArchiveComponent implements OnInit {
   levelText(level: string): string {
     const map: Record<string, string> = { critical: '极高', high: '高', medium: '中', low: '低' };
     return map[level] || level;
+  }
+
+  criticalEventCount(): number {
+    return this.teamEvents.filter(e => e.level === 'critical').length;
+  }
+
+  scoreColor(): string {
+    if (!this.selectedTeam) return '#ff4757';
+    if (this.selectedTeam.safetyScore >= 90) return '#2ed573';
+    if (this.selectedTeam.safetyScore >= 70) return '#ffd32a';
+    return '#ff4757';
+  }
+
+  teamBadgeClass(score: number): string {
+    if (score >= 90) return 'low';
+    if (score >= 70) return 'medium';
+    return 'high';
   }
 
   private loadTeamEvents(teamId: string): void {

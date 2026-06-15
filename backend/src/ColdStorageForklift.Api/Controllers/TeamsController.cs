@@ -2,6 +2,7 @@ namespace ColdStorageForklift.Api.Controllers;
 
 using ColdStorageForklift.Api.DTOs;
 using ColdStorageForklift.Core.Entities;
+using ColdStorageForklift.Services;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -55,7 +56,7 @@ public class TeamsController : ControllerBase
     public async Task<ActionResult<IEnumerable<TeamMemberDto>>> GetMembers(Guid id)
     {
         var members = await _teamService.GetMembersAsync(id);
-        var dtos = members.Select(m => new TeamMemberDto(m.Id, m.TeamId, m.Type, m.MemberName, m.Badge));
+        var dtos = members.Select(m => new TeamMemberDto(m.Id, m.TeamId, m.MemberType, m.MemberName, m.Badge));
         return Ok(dtos);
     }
 

@@ -27,14 +27,6 @@ public class PositionRepository : IPositionRepository
             .ToListAsync();
     }
 
-    public async Task<IReadOnlyList<PositionRecord>> GetByZoneIdAsync(Guid zoneId)
-    {
-        return await _context.PositionRecords
-            .Where(p => p.ZoneId == zoneId)
-            .OrderByDescending(p => p.RecordedAt)
-            .ToListAsync();
-    }
-
     public async Task<IReadOnlyList<PositionRecord>> GetByTimeRangeAsync(DateTime from, DateTime to)
     {
         return await _context.PositionRecords
@@ -86,7 +78,7 @@ public class PositionRepository : IPositionRepository
         return await _context.Personnel.FindAsync(id);
     }
 
-    public async Task UpdateForkliftPositionAsync(Guid forkliftId, double x, double y, double speed, double heading)
+    public async Task UpdateForkliftPositionAsync(Guid forkliftId, double x, double y, double speed, double direction)
     {
         var forklift = await _context.Forklifts.FindAsync(forkliftId);
         if (forklift is not null)
@@ -94,7 +86,7 @@ public class PositionRepository : IPositionRepository
             forklift.CurrentPositionX = x;
             forklift.CurrentPositionY = y;
             forklift.Speed = speed;
-            forklift.Heading = heading;
+            forklift.Direction = direction;
             forklift.LastPositionUpdate = DateTime.UtcNow;
             await _context.SaveChangesAsync();
         }

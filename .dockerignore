@@ -1,7 +1,6 @@
 .idea/
 .git/
 *.md
-docker/
 node_modules/
 dist/
 bin/

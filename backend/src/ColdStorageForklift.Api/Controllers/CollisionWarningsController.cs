@@ -1,6 +1,7 @@
 namespace ColdStorageForklift.Api.Controllers;
 
 using ColdStorageForklift.Api.DTOs;
+using ColdStorageForklift.Services;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]

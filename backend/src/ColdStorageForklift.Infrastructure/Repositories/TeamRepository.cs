@@ -59,10 +59,9 @@ public class TeamRepository : ITeamRepository
         return member;
     }
 
-    public async Task RemoveMemberAsync(Guid teamId, Guid personnelId)
+    public async Task RemoveMemberAsync(Guid memberId)
     {
-        var member = await _context.TeamMembers
-            .FirstOrDefaultAsync(m => m.TeamId == teamId && m.PersonnelId == personnelId);
+        var member = await _context.TeamMembers.FindAsync(memberId);
         if (member is not null)
         {
             _context.TeamMembers.Remove(member);
@@ -70,13 +69,16 @@ public class TeamRepository : ITeamRepository
         }
     }
 
-    public async Task<IReadOnlyList<Forklift>> GetForkliftsByTeamIdAsync(Guid teamId)
+    public async Task<IReadOnlyList<EventLog>> GetTeamEventsAsync(Guid teamId, DateTime? from = null, DateTime? to = null)
     {
-        return await _context.Forklifts.Where(f => f.TeamId == teamId).ToListAsync();
-    }
+        var query = _context.EventLogs.Where(e => e.TeamId == teamId);
 
-    public async Task<IReadOnlyList<Personnel>> GetPersonnelByTeamIdAsync(Guid teamId)
-    {
-        return await _context.Personnel.Where(p => p.TeamId == teamId).ToListAsync();
+        if (from.HasValue)
+            query = query.Where(e => e.OccurredAt >= from.Value);
+
+        if (to.HasValue)
+            query = query.Where(e => e.OccurredAt <= to.Value);
+
+        return await query.OrderByDescending(e => e.OccurredAt).ToListAsync();
     }
 }

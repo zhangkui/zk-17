@@ -30,7 +30,7 @@ public class WarningRepository : IWarningRepository
     public async Task<IReadOnlyList<CollisionWarning>> GetByForkliftIdAsync(Guid forkliftId)
     {
         return await _context.CollisionWarnings
-            .Where(w => w.ForkliftId == forkliftId || w.OtherForkliftId == forkliftId)
+            .Where(w => w.ForkliftId == forkliftId)
             .OrderByDescending(w => w.CreatedAt)
             .ToListAsync();
     }
@@ -51,10 +51,10 @@ public class WarningRepository : IWarningRepository
             .ToListAsync();
     }
 
-    public async Task<IReadOnlyList<CollisionWarning>> GetByLevelAsync(WarningLevel level)
+    public async Task<IReadOnlyList<CollisionWarning>> GetByRiskLevelAsync(RiskLevel riskLevel)
     {
         return await _context.CollisionWarnings
-            .Where(w => w.Level == level)
+            .Where(w => w.RiskLevel == riskLevel)
             .OrderByDescending(w => w.CreatedAt)
             .ToListAsync();
     }
