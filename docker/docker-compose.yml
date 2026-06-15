@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-express-latest
+    container_name: coldstorage-sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourStrong!Passw0rd
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    networks:
+      - coldstorage-network
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: coldstorage-rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=Admin123456
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - coldstorage-network
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/api.Dockerfile
+    container_name: coldstorage-api
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=ColdStorageForkliftDB;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=True
+      - RabbitMQ__HostName=rabbitmq
+      - RabbitMQ__UserName=admin
+      - RabbitMQ__Password=Admin123456
+    depends_on:
+      - sqlserver
+      - rabbitmq
+    networks:
+      - coldstorage-network
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/web.Dockerfile
+    container_name: coldstorage-web
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    networks:
+      - coldstorage-network
+
+networks:
+  coldstorage-network:
+    driver: bridge
+
+volumes:
+  sqlserver_data:
+  rabbitmq_data:
