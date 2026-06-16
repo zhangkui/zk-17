@@ -1,7 +1,7 @@
 import { Component, OnInit, ViewChild, ElementRef, AfterViewInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../core/services/api.service';
-import { BlindSpot } from '../../core/models';
+import { BlindSpot, riskLevelText } from '../../core/models';
 
 @Component({
   selector: 'app-blind-spot',
@@ -40,7 +40,7 @@ import { BlindSpot } from '../../core/models';
               <div style="display:flex;align-items:center;gap:8px;width:100%;">
                 <span class="warning-dot" [class]="bs.riskLevel"></span>
                 <span style="color:#e8f0fe;font-weight:500;">{{ bs.forkliftName }}</span>
-                <span class="risk-badge" [class]="bs.riskLevel">{{ levelText(bs.riskLevel) }}</span>
+                <span class="risk-badge" [class]="bs.riskLevel">{{ riskLevelText(bs.riskLevel) }}</span>
               </div>
               <div style="display:flex;gap:16px;font-size:12px;color:#5a7a9a;padding-left:16px;">
                 <span>角度: {{ (bs.endAngle - bs.startAngle) * 180 / Math.PI | number:'1.0-0' }}°</span>
@@ -52,6 +52,8 @@ import { BlindSpot } from '../../core/models';
                 </div>
               }
             </div>
+          } @empty {
+            <div style="padding:24px;text-align:center;color:#5a7a9a;font-size:13px;">暂无盲区数据</div>
           }
         </div>
       </div>
@@ -67,13 +69,12 @@ export class BlindSpotComponent implements OnInit, AfterViewInit, OnDestroy {
   private ctx!: CanvasRenderingContext2D;
   private animFrameId = 0;
 
+  riskLevelText = riskLevelText;
+
   constructor(private api: ApiService) {}
 
   ngOnInit(): void {
-    this.api.get<BlindSpot[]>('/blindspots').subscribe({
-      next: d => { this.blindSpots = d; },
-      error: () => { this.blindSpots = this.mockBlindSpots(); }
-    });
+    this.api.getBlindSpots().subscribe(d => { this.blindSpots = d; });
   }
 
   ngAfterViewInit(): void {
@@ -83,11 +84,6 @@ export class BlindSpotComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     cancelAnimationFrame(this.animFrameId);
-  }
-
-  levelText(level: string): string {
-    const map: Record<string, string> = { critical: '极高', high: '高', medium: '中', low: '低' };
-    return map[level] || level;
   }
 
   private animate(): void {
@@ -175,15 +171,5 @@ export class BlindSpotComponent implements OnInit, AfterViewInit, OnDestroy {
         ctx.setLineDash([]);
       }
     }
-  }
-
-  private mockBlindSpots(): BlindSpot[] {
-    return [
-      { id: 'bs1', forkliftId: 'f1', forkliftName: '叉车A01', cx: 200, cy: 200, startAngle: -Math.PI / 6, endAngle: Math.PI / 3, radius: 90, riskLevel: 'critical', overlappingPersonnel: ['p1'] },
-      { id: 'bs2', forkliftId: 'f2', forkliftName: '叉车A02', cx: 450, cy: 150, startAngle: Math.PI * 0.3, endAngle: Math.PI * 0.9, radius: 100, riskLevel: 'high', overlappingPersonnel: [] },
-      { id: 'bs3', forkliftId: 'f3', forkliftName: '叉车B01', cx: 600, cy: 300, startAngle: Math.PI * 1.1, endAngle: Math.PI * 1.7, radius: 85, riskLevel: 'medium', overlappingPersonnel: [] },
-      { id: 'bs4', forkliftId: 'f4', forkliftName: '叉车B02', cx: 300, cy: 380, startAngle: -Math.PI / 3, endAngle: Math.PI / 6, radius: 70, riskLevel: 'low', overlappingPersonnel: [] },
-      { id: 'bs5', forkliftId: 'f5', forkliftName: '叉车C01', cx: 150, cy: 400, startAngle: Math.PI * 0.5, endAngle: Math.PI, radius: 95, riskLevel: 'high', overlappingPersonnel: ['p2'] }
-    ];
   }
 }

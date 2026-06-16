@@ -2,7 +2,7 @@ import { Component, OnInit, ViewChild, ElementRef, AfterViewInit } from '@angula
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
-import { Zone, Obstacle } from '../../core/models';
+import { Zone, Obstacle, zoneTypeColors } from '../../core/models';
 
 @Component({
   selector: 'app-zone-modeling',
@@ -30,6 +30,8 @@ import { Zone, Obstacle } from '../../core/models';
                   <button class="btn btn-danger" style="padding:2px 8px;font-size:11px;margin-left:4px;" (click)="deleteZone(z.id); $event.stopPropagation()">删除</button>
                 </div>
               </li>
+            } @empty {
+              <li style="padding:24px;text-align:center;color:#5a7a9a;font-size:13px;">暂无区域数据</li>
             }
           </ul>
         </div>
@@ -91,8 +93,11 @@ import { Zone, Obstacle } from '../../core/models';
                 <input class="form-control" type="number" [(ngModel)]="editingZone.temperature" />
               </div>
               <div class="form-group">
-                <label>容量</label>
-                <input class="form-control" type="number" [(ngModel)]="editingZone.capacity" />
+                <label>高风险区</label>
+                <select class="form-control" [(ngModel)]="editingZone.isHighRisk">
+                  <option [ngValue]="false">否</option>
+                  <option [ngValue]="true">是</option>
+                </select>
               </div>
             </div>
           </div>
@@ -115,6 +120,8 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
   private dragStart = { x: 0, y: 0 };
   private dragCurrent = { x: 0, y: 0 };
 
+  zoneTypeColors = zoneTypeColors;
+
   constructor(private api: ApiService) {}
 
   ngOnInit(): void {
@@ -127,16 +134,9 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
   }
 
   private loadZones(): void {
-    this.api.get<Zone[]>('/zones').subscribe({
-      next: d => { this.zones = d; this.drawCanvas(); },
-      error: () => {
-        this.zones = [
-          { id: 'z1', name: '冷藏区A', type: 'cold_storage', x: 40, y: 40, width: 180, height: 140, temperature: -18, color: '#1e90ff' },
-          { id: 'z2', name: '主通道', type: 'corridor', x: 240, y: 40, width: 200, height: 140, color: '#2ed573' },
-          { id: 'z3', name: '装卸区', type: 'loading', x: 460, y: 40, width: 200, height: 140, color: '#ffa502' },
-          { id: 'z4', name: '限制区', type: 'restricted', x: 40, y: 200, width: 300, height: 160, color: '#ff4757' },
-          { id: 'z5', name: '充电区', type: 'charging', x: 360, y: 200, width: 300, height: 160, color: '#9b59b6' }
-        ];
+    this.api.getZones().subscribe({
+      next: d => {
+        this.zones = d;
         this.drawCanvas();
       }
     });
@@ -144,15 +144,19 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
 
   addZone(): void {
     const newZone: Zone = {
-      id: 'z' + Date.now(),
+      id: crypto.randomUUID(),
       name: '新区域',
       type: 'cold_storage',
       x: 100, y: 100, width: 120, height: 80,
-      color: '#1e90ff'
+      color: '#1e90ff',
+      obstacles: [],
+      isHighRisk: false
     };
-    this.zones.push(newZone);
-    this.editingZone = { ...newZone };
-    this.drawCanvas();
+    this.api.createZone(newZone).subscribe(created => {
+      this.zones.push(created);
+      this.editingZone = { ...created };
+      this.drawCanvas();
+    });
   }
 
   selectZone(zone: Zone): void {
@@ -165,33 +169,32 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
   }
 
   deleteZone(id: string): void {
-    this.zones = this.zones.filter(z => z.id !== id);
-    if (this.selectedZone?.id === id) this.selectedZone = null;
-    if (this.editingZone?.id === id) this.editingZone = null;
-    this.api.delete('/zones/' + id).subscribe();
-    this.drawCanvas();
+    this.api.deleteZone(id).subscribe({
+      next: () => {
+        this.zones = this.zones.filter(z => z.id !== id);
+        if (this.selectedZone?.id === id) this.selectedZone = null;
+        if (this.editingZone?.id === id) this.editingZone = null;
+        this.drawCanvas();
+      }
+    });
   }
 
   saveZone(): void {
     if (!this.editingZone) return;
-    const idx = this.zones.findIndex(z => z.id === this.editingZone!.id);
-    if (idx >= 0) {
-      this.editingZone.color = this.typeColor(this.editingZone.type);
-      this.zones[idx] = { ...this.editingZone };
+    this.editingZone.color = this.typeColor(this.editingZone.type);
+
+    const existing = this.zones.find(z => z.id === this.editingZone!.id);
+    if (existing) {
+      this.api.updateZone(this.editingZone).subscribe(updated => {
+        const idx = this.zones.findIndex(z => z.id === updated.id);
+        if (idx >= 0) this.zones[idx] = updated;
+        this.drawCanvas();
+      });
     }
-    this.api.put('/zones/' + this.editingZone.id, this.editingZone).subscribe();
-    this.drawCanvas();
   }
 
   private typeColor(type: string): string {
-    const map: Record<string, string> = {
-      cold_storage: '#1e90ff',
-      corridor: '#2ed573',
-      loading: '#ffa502',
-      charging: '#9b59b6',
-      restricted: '#ff4757'
-    };
-    return map[type] || '#1e90ff';
+    return zoneTypeColors[type] || '#1e90ff';
   }
 
   onCanvasMouseDown(e: MouseEvent): void {
@@ -219,14 +222,19 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
     const h = Math.abs(this.dragCurrent.y - this.dragStart.y);
     if (w > 20 && h > 20) {
       const newZone: Zone = {
-        id: 'z' + Date.now(),
+        id: crypto.randomUUID(),
         name: '新区域',
         type: 'cold_storage',
         x, y, width: w, height: h,
-        color: '#1e90ff'
+        color: '#1e90ff',
+        obstacles: [],
+        isHighRisk: false
       };
-      this.zones.push(newZone);
-      this.editingZone = { ...newZone };
+      this.api.createZone(newZone).subscribe(created => {
+        this.zones.push(created);
+        this.editingZone = { ...created };
+        this.drawCanvas();
+      });
     }
     this.drawCanvas();
   }
@@ -257,7 +265,7 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
       ctx.fillStyle = z.color;
       ctx.font = '12px sans-serif';
       ctx.fillText(z.name, z.x + 6, z.y + 16);
-      if (z.temperature !== undefined) {
+      if (z.temperature !== undefined && z.temperature !== null) {
         ctx.fillStyle = z.color + 'aa';
         ctx.font = '10px sans-serif';
         ctx.fillText(z.temperature + '℃', z.x + 6, z.y + 30);

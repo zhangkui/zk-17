@@ -2,7 +2,13 @@ import { Component, OnInit, ViewChild, ElementRef, AfterViewInit, OnDestroy } fr
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
-import { EventRecord } from '../../core/models';
+import {
+  EventRecord,
+  EventReplayDto,
+  PositionRecordDto,
+  warningTypeText,
+  riskLevelText
+} from '../../core/models';
 
 interface ReplayFrame {
   timestamp: number;
@@ -23,12 +29,12 @@ interface ReplayFrame {
 
     <div class="toolbar">
       <div class="form-group" style="margin:0;">
-        <input type="date" class="form-control" [(ngModel)]="selectedDate" style="width:180px;" />
+        <input type="date" class="form-control" [(ngModel)]="selectedDate" style="width:180px;" (change)="loadEvents()" />
       </div>
-      <select class="form-control" [(ngModel)]="selectedEventId" style="width:200px;" (change)="loadEvent()">
+      <select class="form-control" [(ngModel)]="selectedEventId" style="width:300px;" (change)="selectEvent()">
         <option value="">选择事件</option>
         @for (e of events; track e.id) {
-          <option [value]="e.id">{{ e.description }} ({{ e.timestamp | date:'HH:mm:ss' }})</option>
+          <option [value]="e.id">{{ warningTypeText(e.type) }} - {{ e.forkliftName }} ({{ e.timestamp | date:'HH:mm:ss' }})</option>
         }
       </select>
     </div>
@@ -71,7 +77,10 @@ export class EventReplayComponent implements OnInit, AfterViewInit, OnDestroy {
   progress = 0;
   currentTime = new Date();
   currentFrameIndex = 0;
-  totalFrames = 100;
+  totalFrames = 0;
+
+  warningTypeText = warningTypeText;
+  riskLevelText = riskLevelText;
 
   private ctx!: CanvasRenderingContext2D;
   private animFrameId = 0;
@@ -81,11 +90,7 @@ export class EventReplayComponent implements OnInit, AfterViewInit, OnDestroy {
   constructor(private api: ApiService) {}
 
   ngOnInit(): void {
-    this.api.get<EventRecord[]>('/events').subscribe({
-      next: d => { this.events = d; },
-      error: () => { this.events = this.mockEvents(); }
-    });
-    this.generateMockFrames();
+    this.loadEvents();
   }
 
   ngAfterViewInit(): void {
@@ -97,12 +102,42 @@ export class EventReplayComponent implements OnInit, AfterViewInit, OnDestroy {
     cancelAnimationFrame(this.animFrameId);
   }
 
-  loadEvent(): void {
-    this.generateMockFrames();
-    this.currentFrameIndex = 0;
-    this.progress = 0;
-    this.isPlaying = false;
-    this.drawFrame();
+  loadEvents(): void {
+    const date = new Date(this.selectedDate);
+    const startTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0).toISOString();
+    const endTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59).toISOString();
+
+    const startTimeStr = startTime;
+    const endTimeStr = endTime;
+
+    this.api.getEvents(startTimeStr, endTimeStr).subscribe({
+      next: d => {
+        this.events = d;
+      }
+    });
+  }
+
+  selectEvent(): void {
+    if (!this.selectedEventId) return;
+
+    const event = this.events.find(e => e.id === this.selectedEventId);
+    if (!event) return;
+
+    const startTime = new Date(event.timestamp);
+    startTime.setMinutes(startTime.getMinutes() - 2);
+    const endTime = new Date(event.timestamp);
+    endTime.setMinutes(endTime.getMinutes() + 2);
+
+    this.api.getReplayData(startTime.toISOString(), endTime.toISOString()).subscribe({
+      next: replayData => {
+        this.generateFramesFromReplayData(replayData, event);
+        this.currentFrameIndex = 0;
+        this.progress = 0;
+        this.isPlaying = false;
+        this.currentTime = startTime;
+        this.drawFrame();
+      }
+    });
   }
 
   togglePlayback(): void {
@@ -161,6 +196,131 @@ export class EventReplayComponent implements OnInit, AfterViewInit, OnDestroy {
     this.animFrameId = requestAnimationFrame(() => this.playLoop());
   }
 
+  private generateFramesFromReplayData(replayData: EventReplayDto, event: EventRecord): void {
+    this.frames = [];
+    this.totalFrames = 120;
+
+    const positions = replayData.positionRecords || [];
+    const warnings = replayData.collisionWarnings || [];
+
+    const forkliftMap = new Map<string, { name: string; positions: PositionRecordDto[] }>();
+    const personnelMap = new Map<string, { name: string; positions: PositionRecordDto[] }>();
+
+    for (const pos of positions) {
+      if (pos.entityType === 'Forklift' || pos.entityType === '0') {
+        if (!forkliftMap.has(pos.entityId)) {
+          forkliftMap.set(pos.entityId, { name: `叉车-${pos.entityId.substring(0, 4)}`, positions: [] });
+        }
+        forkliftMap.get(pos.entityId)!.positions.push(pos);
+      } else if (pos.entityType === 'Personnel' || pos.entityType === '1') {
+        if (!personnelMap.has(pos.entityId)) {
+          personnelMap.set(pos.entityId, { name: `人员-${pos.entityId.substring(0, 4)}`, positions: [] });
+        }
+        personnelMap.get(pos.entityId)!.positions.push(pos);
+      }
+    }
+
+    for (const [fId, data] of forkliftMap) {
+      data.positions.sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime());
+    }
+    for (const [pId, data] of personnelMap) {
+      data.positions.sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime());
+    }
+
+    for (let i = 0; i < this.totalFrames; i++) {
+      const t = i / this.totalFrames;
+      const frame: ReplayFrame = {
+        timestamp: Date.now() + i * 500,
+        forklifts: [],
+        personnel: [],
+        warnings: []
+      };
+
+      for (const [fId, data] of forkliftMap) {
+        const pos = this.interpolatePosition(data.positions, t);
+        frame.forklifts.push({
+          id: fId,
+          name: data.name,
+          x: pos.x,
+          y: pos.y,
+          heading: pos.heading
+        });
+      }
+
+      for (const [pId, data] of personnelMap) {
+        const pos = this.interpolatePosition(data.positions, t);
+        frame.personnel.push({
+          id: pId,
+          name: data.name,
+          x: pos.x,
+          y: pos.y
+        });
+      }
+
+      if (t > 0.3 && t < 0.7) {
+        frame.warnings.push({
+          id: event.id,
+          x: event.position.x,
+          y: event.position.y,
+          level: event.level,
+          message: event.description
+        });
+      }
+
+      this.frames.push(frame);
+    }
+
+    if (this.frames.length === 0) {
+      this.generateDefaultFrames(event);
+    }
+  }
+
+  private interpolatePosition(positions: PositionRecordDto[], t: number): { x: number; y: number; heading: number } {
+    if (positions.length === 0) {
+      return { x: 100 + Math.random() * 700, y: 100 + Math.random() * 300, heading: 0 };
+    }
+    if (positions.length === 1) {
+      return { x: positions[0].positionX, y: positions[0].positionY, heading: positions[0].direction || 0 };
+    }
+
+    const idx = Math.min(Math.floor(t * (positions.length - 1)), positions.length - 2);
+    const localT = (t * (positions.length - 1)) - idx;
+    const a = positions[idx];
+    const b = positions[idx + 1];
+
+    return {
+      x: a.positionX + (b.positionX - a.positionX) * localT,
+      y: a.positionY + (b.positionY - a.positionY) * localT,
+      heading: (a.direction || 0) + ((b.direction || 0) - (a.direction || 0)) * localT
+    };
+  }
+
+  private generateDefaultFrames(event: EventRecord): void {
+    this.frames = [];
+    this.totalFrames = 120;
+    const fStartX = event.position.x - 200;
+    const fStartY = event.position.y;
+    const pStartX = event.position.x + 200;
+    const pStartY = event.position.y + 50;
+
+    for (let i = 0; i < this.totalFrames; i++) {
+      const t = i / this.totalFrames;
+      const frame: ReplayFrame = {
+        timestamp: Date.now() + i * 500,
+        forklifts: [
+          { id: event.forkliftId, name: event.forkliftName, x: fStartX + t * 350, y: fStartY + Math.sin(t * Math.PI * 4) * 30, heading: t < 0.5 ? 0 : 180 }
+        ],
+        personnel: event.personnelId ? [
+          { id: event.personnelId, name: event.personnelName || '人员', x: pStartX - t * 300, y: pStartY + Math.cos(t * Math.PI * 3) * 25 }
+        ] : [],
+        warnings: t > 0.3 && t < 0.7 ? [
+          { id: event.id, x: event.position.x, y: event.position.y, level: event.level, message: event.description }
+        ] : []
+      };
+      this.frames.push(frame);
+    }
+  }
+
   private drawFrame(): void {
     if (!this.ctx) return;
     const ctx = this.ctx;
@@ -179,27 +339,24 @@ export class EventReplayComponent implements OnInit, AfterViewInit, OnDestroy {
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
     }
 
-    ctx.fillStyle = '#1e90ff33';
-    ctx.fillRect(40, 40, 200, 160);
-    ctx.strokeStyle = '#1e90ff';
-    ctx.strokeRect(40, 40, 200, 160);
-    ctx.fillStyle = '#1e90ff';
-    ctx.font = '12px sans-serif';
-    ctx.fillText('冷藏区A', 50, 58);
+    const zones = [
+      { x: 40, y: 40, w: 200, h: 160, color: '#1e90ff', name: '冷藏区A' },
+      { x: 260, y: 40, w: 200, h: 160, color: '#2ed573', name: '主通道' },
+      { x: 480, y: 40, w: 200, h: 160, color: '#ffa502', name: '装卸区' },
+      { x: 40, y: 220, w: 300, h: 180, color: '#9b59b6', name: '充电区' },
+      { x: 360, y: 220, w: 320, h: 180, color: '#ff4757', name: '限制区' }
+    ];
 
-    ctx.fillStyle = '#2ed57333';
-    ctx.fillRect(260, 40, 200, 160);
-    ctx.strokeStyle = '#2ed573';
-    ctx.strokeRect(260, 40, 200, 160);
-    ctx.fillStyle = '#2ed573';
-    ctx.fillText('主通道', 270, 58);
-
-    ctx.fillStyle = '#ffa50233';
-    ctx.fillRect(480, 40, 200, 160);
-    ctx.strokeStyle = '#ffa502';
-    ctx.strokeRect(480, 40, 200, 160);
-    ctx.fillStyle = '#ffa502';
-    ctx.fillText('装卸区', 490, 58);
+    for (const z of zones) {
+      ctx.fillStyle = z.color + '22';
+      ctx.fillRect(z.x, z.y, z.w, z.h);
+      ctx.strokeStyle = z.color;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(z.x, z.y, z.w, z.h);
+      ctx.fillStyle = z.color + 'aa';
+      ctx.font = '12px sans-serif';
+      ctx.fillText(z.name, z.x + 6, z.y + 18);
+    }
 
     if (frame) {
       for (const f of frame.forklifts) {
@@ -246,37 +403,5 @@ export class EventReplayComponent implements OnInit, AfterViewInit, OnDestroy {
     ctx.fillStyle = '#5a7a9a';
     ctx.font = '11px sans-serif';
     ctx.fillText('回放时间: ' + this.formatTime(this.currentFrameIndex), canvas.width - 140, canvas.height - 12);
-  }
-
-  private generateMockFrames(): void {
-    this.frames = [];
-    this.totalFrames = 120;
-    const fStartX = 100, fStartY = 120;
-    const pStartX = 500, pStartY = 200;
-
-    for (let i = 0; i < this.totalFrames; i++) {
-      const t = i / this.totalFrames;
-      const frame: ReplayFrame = {
-        timestamp: Date.now() + i * 500,
-        forklifts: [
-          { id: 'f1', name: '叉车A01', x: fStartX + t * 400, y: fStartY + Math.sin(t * Math.PI * 4) * 40, heading: t < 0.5 ? 0 : 180 }
-        ],
-        personnel: [
-          { id: 'p1', name: '张三', x: pStartX - t * 200, y: pStartY + Math.cos(t * Math.PI * 3) * 30 }
-        ],
-        warnings: t > 0.3 && t < 0.6 ? [
-          { id: 'w1', x: (fStartX + t * 400 + pStartX - t * 200) / 2, y: 180, level: 'critical', message: '接近碰撞' }
-        ] : []
-      };
-      this.frames.push(frame);
-    }
-  }
-
-  private mockEvents(): EventRecord[] {
-    return [
-      { id: 'e1', type: 'collision', level: 'critical', forkliftId: 'f1', forkliftName: '叉车A01', personnelId: 'p1', personnelName: '张三', position: { x: 300, y: 180 }, description: '叉车与人员接近碰撞', timestamp: new Date(), duration: 15, teamId: 't1' },
-      { id: 'e2', type: 'blindspot_intrusion', level: 'high', forkliftId: 'f2', forkliftName: '叉车A02', personnelId: 'p2', personnelName: '李四', position: { x: 450, y: 250 }, description: '人员进入叉车盲区', timestamp: new Date(Date.now() - 3600000), duration: 8, teamId: 't2' },
-      { id: 'e3', type: 'zone_violation', level: 'medium', forkliftId: 'f3', forkliftName: '叉车B01', position: { x: 550, y: 120 }, description: '叉车违规驶入限制区', timestamp: new Date(Date.now() - 7200000), duration: 25, teamId: 't1' }
-    ];
   }
 }

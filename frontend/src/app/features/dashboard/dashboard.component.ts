@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Subscription } from 'rxjs';
 import { SignalRService } from '../../core/services/signalr.service';
 import { ApiService } from '../../core/services/api.service';
-import { Forklift, Personnel, BlindSpot, Warning, Zone } from '../../core/models';
+import { Forklift, Personnel, BlindSpot, Warning, Zone, riskLevelText } from '../../core/models';
 
 @Component({
   selector: 'app-dashboard',
@@ -58,8 +58,10 @@ import { Forklift, Personnel, BlindSpot, Warning, Zone } from '../../core/models
                 <div style="color:#e8f0fe;">{{ w.forkliftName }}</div>
                 <div style="color:#5a7a9a;font-size:12px;">{{ w.message }}</div>
               </div>
-              <span class="risk-badge" [class]="w.level">{{ levelText(w.level) }}</span>
+              <span class="risk-badge" [class]="w.level">{{ riskLevelText(w.level) }}</span>
             </div>
+          } @empty {
+            <div style="padding:24px;text-align:center;color:#5a7a9a;font-size:13px;">暂无活跃预警</div>
           }
         </div>
       </div>
@@ -81,6 +83,8 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   private ctx!: CanvasRenderingContext2D;
   private animFrameId = 0;
   private sub!: Subscription;
+
+  riskLevelText = riskLevelText;
 
   constructor(
     private signalr: SignalRService,
@@ -124,32 +128,12 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.sub) this.sub.unsubscribe();
   }
 
-  levelText(level: string): string {
-    const map: Record<string, string> = { critical: '极高', high: '高', medium: '中', low: '低' };
-    return map[level] || level;
-  }
-
   private loadData(): void {
-    this.api.get<Forklift[]>('/forklifts').subscribe({
-      next: d => { this.forklifts = d; },
-      error: () => { this.forklifts = this.mockForklifts(); }
-    });
-    this.api.get<Personnel[]>('/personnel').subscribe({
-      next: d => { this.personnel = d; },
-      error: () => { this.personnel = this.mockPersonnel(); }
-    });
-    this.api.get<BlindSpot[]>('/blindspots').subscribe({
-      next: d => { this.blindSpots = d; },
-      error: () => { this.blindSpots = this.mockBlindSpots(); }
-    });
-    this.api.get<Warning[]>('/warnings/active').subscribe({
-      next: d => { this.activeWarnings = d; },
-      error: () => { this.activeWarnings = this.mockWarnings(); }
-    });
-    this.api.get<Zone[]>('/zones').subscribe({
-      next: d => { this.zones = d; },
-      error: () => { this.zones = this.mockZones(); }
-    });
+    this.api.getForklifts().subscribe(d => { this.forklifts = d; });
+    this.api.getPersonnel().subscribe(d => { this.personnel = d; });
+    this.api.getBlindSpots().subscribe(d => { this.blindSpots = d; });
+    this.api.getWarnings().subscribe(d => { this.activeWarnings = d.filter(w => w.status === 'active'); });
+    this.api.getZones().subscribe(d => { this.zones = d; });
   }
 
   private updateForklift(data: Forklift): void {
@@ -263,49 +247,5 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       low: 'rgba(46,213,115,0.1)'
     };
     return map[level] || map['low'];
-  }
-
-  private mockForklifts(): Forklift[] {
-    return [
-      { id: 'f1', name: '叉车A01', code: 'A01', position: { x: 200, y: 200 }, heading: 45, speed: 2.5, status: 'online', teamId: 't1', blindSpotAngle: 120, blindSpotRange: 80, lastUpdate: new Date() },
-      { id: 'f2', name: '叉车A02', code: 'A02', position: { x: 500, y: 300 }, heading: 180, speed: 1.8, status: 'online', teamId: 't1', blindSpotAngle: 120, blindSpotRange: 80, lastUpdate: new Date() },
-      { id: 'f3', name: '叉车B01', code: 'B01', position: { x: 350, y: 150 }, heading: 270, speed: 3.0, status: 'online', teamId: 't2', blindSpotAngle: 140, blindSpotRange: 90, lastUpdate: new Date() }
-    ];
-  }
-
-  private mockPersonnel(): Personnel[] {
-    return [
-      { id: 'p1', name: '张三', code: 'P001', position: { x: 280, y: 220 }, status: 'online', teamId: 't1', role: 'worker', lastUpdate: new Date() },
-      { id: 'p2', name: '李四', code: 'P002', position: { x: 450, y: 350 }, status: 'online', teamId: 't2', role: 'operator', lastUpdate: new Date() },
-      { id: 'p3', name: '王五', code: 'P003', position: { x: 600, y: 180 }, status: 'online', teamId: 't1', role: 'supervisor', lastUpdate: new Date() },
-      { id: 'p4', name: '赵六', code: 'P004', position: { x: 150, y: 380 }, status: 'online', teamId: 't2', role: 'worker', lastUpdate: new Date() }
-    ];
-  }
-
-  private mockBlindSpots(): BlindSpot[] {
-    return [
-      { id: 'bs1', forkliftId: 'f1', forkliftName: '叉车A01', cx: 200, cy: 200, startAngle: -Math.PI / 6, endAngle: Math.PI / 6, radius: 80, riskLevel: 'high', overlappingPersonnel: ['p1'] },
-      { id: 'bs2', forkliftId: 'f2', forkliftName: '叉车A02', cx: 500, cy: 300, startAngle: Math.PI * 0.6, endAngle: Math.PI * 1.2, radius: 80, riskLevel: 'critical', overlappingPersonnel: ['p2'] },
-      { id: 'bs3', forkliftId: 'f3', forkliftName: '叉车B01', cx: 350, cy: 150, startAngle: Math.PI * 1.2, endAngle: Math.PI * 1.8, radius: 90, riskLevel: 'medium', overlappingPersonnel: [] }
-    ];
-  }
-
-  private mockWarnings(): Warning[] {
-    return [
-      { id: 'w1', type: 'collision', level: 'critical', forkliftId: 'f2', forkliftName: '叉车A02', personnelId: 'p2', personnelName: '李四', position: { x: 480, y: 320 }, message: '人员进入碰撞风险区', timestamp: new Date(), status: 'active' },
-      { id: 'w2', type: 'blindspot_intrusion', level: 'high', forkliftId: 'f1', forkliftName: '叉车A01', personnelId: 'p1', personnelName: '张三', position: { x: 250, y: 210 }, message: '人员进入盲区范围', timestamp: new Date(), status: 'active' },
-      { id: 'w3', type: 'speed_violation', level: 'medium', forkliftId: 'f3', forkliftName: '叉车B01', position: { x: 350, y: 150 }, message: '超速行驶 3.0m/s', timestamp: new Date(), status: 'active' }
-    ];
-  }
-
-  private mockZones(): Zone[] {
-    return [
-      { id: 'z1', name: '冷藏区A', type: 'cold_storage', x: 40, y: 40, width: 200, height: 160, temperature: -18, color: '#1e90ff' },
-      { id: 'z2', name: '冷藏区B', type: 'cold_storage', x: 260, y: 40, width: 200, height: 160, temperature: -25, color: '#1e90ff' },
-      { id: 'z3', name: '主通道', type: 'corridor', x: 40, y: 220, width: 420, height: 80, color: '#2ed573' },
-      { id: 'z4', name: '装卸区', type: 'loading', x: 480, y: 40, width: 280, height: 260, color: '#ffa502' },
-      { id: 'z5', name: '充电区', type: 'charging', x: 40, y: 320, width: 140, height: 140, color: '#9b59b6' },
-      { id: 'z6', name: '限制区', type: 'restricted', x: 200, y: 320, width: 260, height: 140, color: '#ff4757' }
-    ];
   }
 }

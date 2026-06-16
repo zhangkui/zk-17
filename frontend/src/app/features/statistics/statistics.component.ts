@@ -1,7 +1,15 @@
 import { Component, OnInit, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../core/services/api.service';
-import { Statistics } from '../../core/models';
+import {
+  Statistics,
+  HighRiskPeriodDto,
+  WarningTrendDto,
+  ZoneRiskDto,
+  TeamSafetyDto,
+  riskLevelText,
+  riskLevelValue
+} from '../../core/models';
 
 @Component({
   selector: 'app-statistics',
@@ -58,13 +66,17 @@ import { Statistics } from '../../core/models';
                     <td>
                       <div style="display:flex;align-items:center;gap:8px;">
                         <div style="flex:1;height:6px;background:#1b3a5c;border-radius:3px;">
-                          <div [style.width.%]="z.riskScore" style="height:100%;border-radius:3px;" [style.background]="riskColor(z.riskScore)"></div>
+                          <div [style.width.%]="riskLevelValue(z.riskLevel)" style="height:100%;border-radius:3px;" [style.background]="riskColor(riskLevelValue(z.riskLevel))"></div>
                         </div>
-                        <span style="min-width:30px;text-align:right;">{{ z.riskScore }}</span>
+                        <span style="min-width:30px;text-align:right;">{{ riskLevelValue(z.riskLevel) }}</span>
                       </div>
                     </td>
-                    <td>{{ z.eventCount }}</td>
-                    <td><span class="risk-badge" [class]="riskLevel(z.riskScore)">{{ riskLevelText(z.riskScore) }}</span></td>
+                    <td>{{ z.warningCount }}</td>
+                    <td><span class="risk-badge" [class]="riskLevel(riskLevelValue(z.riskLevel))">{{ riskLevelText(riskLevel(riskLevelValue(z.riskLevel))) }}</span></td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="5" style="padding:24px;text-align:center;color:#5a7a9a;">暂无区域风险数据</td>
                   </tr>
                 }
               </tbody>
@@ -97,13 +109,33 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
     teamSafetyScores: []
   };
 
+  riskColor = (score: number) => {
+    if (score >= 80) return '#ff4757';
+    if (score >= 60) return '#ffa502';
+    if (score >= 40) return '#ffd32a';
+    return '#2ed573';
+  };
+
+  riskLevel = (score: number): 'critical' | 'high' | 'medium' | 'low' => {
+    if (score >= 80) return 'critical';
+    if (score >= 60) return 'high';
+    if (score >= 40) return 'medium';
+    return 'low';
+  };
+
+  riskLevelText = (level: string): string => {
+    const map: Record<string, string> = { critical: '极高', high: '高', medium: '中', low: '低' };
+    return map[level] || level;
+  };
+
+  riskLevelValue = riskLevelValue;
+
   constructor(private api: ApiService) {}
 
   ngOnInit(): void {
-    this.api.get<Statistics>('/statistics').subscribe({
-      next: d => { this.stats = d; this.drawAll(); },
-      error: () => {
-        this.stats = this.mockStats();
+    this.api.getStatistics().subscribe({
+      next: d => {
+        this.stats = d;
         setTimeout(() => this.drawAll(), 50);
       }
     });
@@ -113,27 +145,6 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
     if (this.stats.hourlyWarnings.length > 0) {
       this.drawAll();
     }
-  }
-
-  riskColor(score: number): string {
-    if (score >= 80) return '#ff4757';
-    if (score >= 60) return '#ffa502';
-    if (score >= 40) return '#ffd32a';
-    return '#2ed573';
-  }
-
-  riskLevel(score: number): string {
-    if (score >= 80) return 'critical';
-    if (score >= 60) return 'high';
-    if (score >= 40) return 'medium';
-    return 'low';
-  }
-
-  riskLevelText(score: number): string {
-    if (score >= 80) return '极高';
-    if (score >= 60) return '高';
-    if (score >= 40) return '中';
-    return '低';
   }
 
   private drawAll(): void {
@@ -146,7 +157,14 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
     const canvas = this.hourlyCanvasRef?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d')!;
-    const data = this.stats.hourlyWarnings;
+    const data = new Array(24).fill(0);
+
+    for (const item of this.stats.hourlyWarnings) {
+      if (item.hour >= 0 && item.hour < 24) {
+        data[item.hour] = item.eventCount;
+      }
+    }
+
     const w = canvas.width, h = canvas.height;
     const padding = { top: 20, right: 20, bottom: 40, left: 50 };
 
@@ -212,7 +230,7 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
 
     const chartW = w - padding.left - padding.right;
     const chartH = h - padding.top - padding.bottom;
-    const maxVal = Math.max(...data.map(d => d.count), 1);
+    const maxVal = Math.max(...data.map(d => d.totalCount), 1);
 
     ctx.strokeStyle = '#1b3a5c';
     ctx.lineWidth = 0.5;
@@ -232,8 +250,8 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
     ctx.beginPath();
     ctx.moveTo(padding.left, padding.top + chartH);
     for (let i = 0; i < data.length; i++) {
-      const x = padding.left + (i / (data.length - 1)) * chartW;
-      const y = padding.top + chartH - (data[i].count / maxVal) * chartH;
+      const x = padding.left + (i / Math.max(data.length - 1, 1)) * chartW;
+      const y = padding.top + chartH - (data[i].totalCount / maxVal) * chartH;
       ctx.lineTo(x, y);
     }
     ctx.lineTo(padding.left + chartW, padding.top + chartH);
@@ -243,8 +261,8 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
 
     ctx.beginPath();
     for (let i = 0; i < data.length; i++) {
-      const x = padding.left + (i / (data.length - 1)) * chartW;
-      const y = padding.top + chartH - (data[i].count / maxVal) * chartH;
+      const x = padding.left + (i / Math.max(data.length - 1, 1)) * chartW;
+      const y = padding.top + chartH - (data[i].totalCount / maxVal) * chartH;
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
@@ -253,11 +271,14 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
     ctx.stroke();
 
     for (let i = 0; i < data.length; i += Math.max(1, Math.floor(data.length / 7))) {
-      const x = padding.left + (i / (data.length - 1)) * chartW;
+      const x = padding.left + (i / Math.max(data.length - 1, 1)) * chartW;
       ctx.fillStyle = '#5a7a9a';
       ctx.font = '9px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(data[i].date, x, h - padding.bottom + 16);
+      const dateLabel = typeof data[i].date === 'string'
+        ? data[i].date.substring(5)
+        : new Date(data[i].date).toLocaleDateString().substring(5);
+      ctx.fillText(dateLabel, x, h - padding.bottom + 16);
     }
   }
 
@@ -269,7 +290,7 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
     const w = canvas.width, h = canvas.height;
     const cx = w / 2, cy = h / 2 + 10;
     const r = Math.min(w, h) / 2 - 50;
-    const labels = ['合规性', '安全意识', '应急响应', '培训达标', '设备维护'];
+    const labels = ['安全评分', '预警总数', '极高预警', '确认率', '综合评估'];
     const sides = 5;
 
     ctx.clearRect(0, 0, w, h);
@@ -312,7 +333,13 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
 
     for (let t = 0; t < data.length; t++) {
       const team = data[t];
-      const values = [team.compliance, team.awareness, team.response, team.training, team.equipment];
+      const values = [
+        team.safetyScore,
+        Math.min((team.totalWarnings / 50) * 100, 100),
+        Math.min((team.criticalWarnings / 20) * 100, 100),
+        team.acknowledgedRate * 100,
+        Math.min((team.safetyScore + team.acknowledgedRate * 100) / 2, 100)
+      ];
       const color = teamColors[t % teamColors.length];
 
       ctx.beginPath();
@@ -352,28 +379,5 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
       ctx.textAlign = 'left';
       ctx.fillText(data[t].teamName, 38, 31 + t * 20);
     }
-  }
-
-  private mockStats(): Statistics {
-    return {
-      hourlyWarnings: [2, 1, 0, 0, 1, 3, 5, 8, 12, 15, 18, 14, 10, 8, 11, 16, 20, 15, 9, 6, 4, 3, 2, 1],
-      warningTrend: [
-        { date: '06-01', count: 45 }, { date: '06-03', count: 52 }, { date: '06-05', count: 38 },
-        { date: '06-07', count: 61 }, { date: '06-09', count: 55 }, { date: '06-11', count: 42 },
-        { date: '06-13', count: 48 }, { date: '06-15', count: 35 }
-      ],
-      zoneRiskRanking: [
-        { zoneId: 'z1', zoneName: '冷藏区A', riskScore: 85, eventCount: 23 },
-        { zoneId: 'z2', zoneName: '主通道', riskScore: 72, eventCount: 18 },
-        { zoneId: 'z3', zoneName: '装卸区', riskScore: 65, eventCount: 15 },
-        { zoneId: 'z4', zoneName: '限制区', riskScore: 45, eventCount: 8 },
-        { zoneId: 'z5', zoneName: '充电区', riskScore: 30, eventCount: 4 }
-      ],
-      teamSafetyScores: [
-        { teamId: 't1', teamName: '冷藏一班', compliance: 88, awareness: 75, response: 82, training: 90, equipment: 85 },
-        { teamId: 't2', teamName: '冷藏二班', compliance: 72, awareness: 68, response: 70, training: 75, equipment: 78 },
-        { teamId: 't3', teamName: '夜班一组', compliance: 92, awareness: 88, response: 90, training: 95, equipment: 93 }
-      ]
-    };
   }
 }

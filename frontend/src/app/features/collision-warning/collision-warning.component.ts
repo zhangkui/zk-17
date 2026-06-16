@@ -1,7 +1,7 @@
 import { Component, OnInit, ViewChild, ElementRef, AfterViewInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../core/services/api.service';
-import { Warning } from '../../core/models';
+import { Warning, riskLevelText, warningTypeText } from '../../core/models';
 
 @Component({
   selector: 'app-collision-warning',
@@ -53,7 +53,7 @@ import { Warning } from '../../core/models';
               <div style="display:flex;align-items:center;gap:8px;width:100%;">
                 <span class="warning-dot" [class]="w.level"></span>
                 <span style="color:#e8f0fe;font-weight:500;flex:1;">{{ w.forkliftName }}</span>
-                <span class="risk-badge" [class]="w.level">{{ levelText(w.level) }}</span>
+                <span class="risk-badge" [class]="w.level">{{ riskLevelText(w.level) }}</span>
               </div>
               <div style="font-size:12px;color:#5a7a9a;padding-left:16px;">{{ w.message }}</div>
               <div style="display:flex;justify-content:space-between;width:100%;padding-left:16px;margin-top:4px;">
@@ -61,6 +61,8 @@ import { Warning } from '../../core/models';
                 <button class="btn btn-success" style="padding:2px 10px;font-size:11px;" (click)="acknowledge(w); $event.stopPropagation()">确认</button>
               </div>
             </div>
+          } @empty {
+            <div style="padding:24px;text-align:center;color:#5a7a9a;font-size:13px;">暂无活跃预警</div>
           }
         </div>
       </div>
@@ -76,11 +78,11 @@ import { Warning } from '../../core/models';
           <div style="font-size:13px;">
             <div class="form-group">
               <label>预警类型</label>
-              <div style="color:#e8f0fe;">{{ typeText(detailWarning.type) }}</div>
+              <div style="color:#e8f0fe;">{{ warningTypeText(detailWarning.type) }}</div>
             </div>
             <div class="form-group">
               <label>风险等级</label>
-              <span class="risk-badge" [class]="detailWarning.level">{{ levelText(detailWarning.level) }}</span>
+              <span class="risk-badge" [class]="detailWarning.level">{{ riskLevelText(detailWarning.level) }}</span>
             </div>
             <div class="form-group">
               <label>叉车</label>
@@ -96,6 +98,12 @@ import { Warning } from '../../core/models';
               <label>位置</label>
               <div style="color:#e8f0fe;">X: {{ detailWarning.position.x }}, Y: {{ detailWarning.position.y }}</div>
             </div>
+            @if (detailWarning.distance !== undefined && detailWarning.distance !== null) {
+              <div class="form-group">
+                <label>距离</label>
+                <div style="color:#e8f0fe;">{{ detailWarning.distance }} m</div>
+              </div>
+            }
             <div class="form-group">
               <label>预警信息</label>
               <div style="color:#e8f0fe;">{{ detailWarning.message }}</div>
@@ -124,13 +132,13 @@ export class CollisionWarningComponent implements OnInit, AfterViewInit, OnDestr
   private ctx!: CanvasRenderingContext2D;
   private animFrameId = 0;
 
+  riskLevelText = riskLevelText;
+  warningTypeText = warningTypeText;
+
   constructor(private api: ApiService) {}
 
   ngOnInit(): void {
-    this.api.get<Warning[]>('/warnings/active').subscribe({
-      next: d => { this.warnings = d; },
-      error: () => { this.warnings = this.mockWarnings(); }
-    });
+    this.loadWarnings();
   }
 
   ngAfterViewInit(): void {
@@ -142,21 +150,6 @@ export class CollisionWarningComponent implements OnInit, AfterViewInit, OnDestr
     cancelAnimationFrame(this.animFrameId);
   }
 
-  levelText(level: string): string {
-    const map: Record<string, string> = { critical: '极高', high: '高', medium: '中', low: '低' };
-    return map[level] || level;
-  }
-
-  typeText(type: string): string {
-    const map: Record<string, string> = {
-      collision: '碰撞风险',
-      blindspot_intrusion: '盲区入侵',
-      zone_violation: '区域违规',
-      speed_violation: '超速违规'
-    };
-    return map[type] || type;
-  }
-
   countByLevel(level: string): number {
     return this.warnings.filter(w => w.level === level).length;
   }
@@ -166,9 +159,19 @@ export class CollisionWarningComponent implements OnInit, AfterViewInit, OnDestr
   }
 
   acknowledge(w: Warning): void {
-    w.status = 'acknowledged';
-    this.warnings = this.warnings.filter(x => x.id !== w.id);
-    this.api.post('/warnings/' + w.id + '/acknowledge', {}).subscribe();
+    this.api.acknowledgeWarning(w.id, 'operator').subscribe({
+      next: () => {
+        w.status = 'acknowledged';
+        w.isAcknowledged = true;
+        this.warnings = this.warnings.filter(x => x.id !== w.id);
+      }
+    });
+  }
+
+  private loadWarnings(): void {
+    this.api.getWarnings().subscribe(d => {
+      this.warnings = d.filter(w => w.status === 'active');
+    });
   }
 
   private animate(): void {
@@ -228,15 +231,5 @@ export class CollisionWarningComponent implements OnInit, AfterViewInit, OnDestr
       ctx.font = '10px sans-serif';
       ctx.fillText(w.message, w.position.x + 14, w.position.y + 6);
     }
-  }
-
-  private mockWarnings(): Warning[] {
-    return [
-      { id: 'w1', type: 'collision', level: 'critical', forkliftId: 'f1', forkliftName: '叉车A01', personnelId: 'p1', personnelName: '张三', position: { x: 200, y: 180 }, message: '人员进入碰撞风险区', timestamp: new Date(), status: 'active' },
-      { id: 'w2', type: 'blindspot_intrusion', level: 'high', forkliftId: 'f2', forkliftName: '叉车A02', personnelId: 'p2', personnelName: '李四', position: { x: 400, y: 250 }, message: '人员进入叉车盲区', timestamp: new Date(), status: 'active' },
-      { id: 'w3', type: 'zone_violation', level: 'medium', forkliftId: 'f3', forkliftName: '叉车B01', position: { x: 550, y: 120 }, message: '叉车驶入限制区域', timestamp: new Date(), status: 'active' },
-      { id: 'w4', type: 'speed_violation', level: 'low', forkliftId: 'f4', forkliftName: '叉车B02', position: { x: 300, y: 350 }, message: '超速行驶 3.2m/s', timestamp: new Date(), status: 'active' },
-      { id: 'w5', type: 'collision', level: 'critical', forkliftId: 'f5', forkliftName: '叉车C01', personnelId: 'p3', personnelName: '王五', position: { x: 150, y: 320 }, message: '碰撞风险极高', timestamp: new Date(), status: 'active' }
-    ];
   }
 }
