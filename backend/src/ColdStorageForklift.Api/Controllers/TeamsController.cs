@@ -24,6 +24,24 @@ public class TeamsController : ControllerBase
         return Ok(dtos);
     }
 
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<TeamDetailDto>> GetTeamById(Guid id)
+    {
+        var team = await _teamService.GetTeamByIdAsync(id);
+        if (team == null) return NotFound();
+
+        var members = await _teamService.GetMembersAsync(id);
+        var memberDtos = members.Select(m => new TeamMemberDto(m.Id, m.TeamId, m.MemberType, m.MemberName, m.Badge));
+
+        return Ok(new TeamDetailDto(
+            team.Id,
+            team.Name,
+            team.Shift,
+            team.Leader,
+            team.CreatedAt,
+            memberDtos));
+    }
+
     [HttpPost]
     public async Task<ActionResult<TeamDto>> CreateTeam([FromBody] CreateTeamRequest request)
     {
@@ -34,7 +52,7 @@ public class TeamsController : ControllerBase
             Leader = request.Leader
         };
         var created = await _teamService.CreateTeamAsync(team);
-        return CreatedAtAction(nameof(GetTeams), new { id = created.Id },
+        return CreatedAtAction(nameof(GetTeamById), new { id = created.Id },
             new TeamDto(created.Id, created.Name, created.Shift, created.Leader, created.CreatedAt));
     }
 
@@ -52,9 +70,22 @@ public class TeamsController : ControllerBase
         return Ok(new TeamDto(updated.Id, updated.Name, updated.Shift, updated.Leader, updated.CreatedAt));
     }
 
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> DeleteTeam(Guid id)
+    {
+        var team = await _teamService.GetTeamByIdAsync(id);
+        if (team == null) return NotFound();
+
+        await _teamService.DeleteTeamAsync(id);
+        return NoContent();
+    }
+
     [HttpGet("{id:guid}/members")]
     public async Task<ActionResult<IEnumerable<TeamMemberDto>>> GetMembers(Guid id)
     {
+        var team = await _teamService.GetTeamByIdAsync(id);
+        if (team == null) return NotFound();
+
         var members = await _teamService.GetMembersAsync(id);
         var dtos = members.Select(m => new TeamMemberDto(m.Id, m.TeamId, m.MemberType, m.MemberName, m.Badge));
         return Ok(dtos);
@@ -63,6 +94,9 @@ public class TeamsController : ControllerBase
     [HttpPost("{id:guid}/members")]
     public async Task<ActionResult<TeamMemberDto>> AddMember(Guid id, [FromBody] AddTeamMemberRequest request)
     {
+        var team = await _teamService.GetTeamByIdAsync(id);
+        if (team == null) return NotFound();
+
         var member = new TeamMember
         {
             MemberType = request.Type,
@@ -73,12 +107,46 @@ public class TeamsController : ControllerBase
         return Ok(new TeamMemberDto(created.Id, created.TeamId, created.MemberType, created.MemberName, created.Badge));
     }
 
+    [HttpPut("{id:guid}/members/{memberId:guid}")]
+    public async Task<ActionResult<TeamMemberDto>> UpdateMember(Guid id, Guid memberId, [FromBody] UpdateTeamMemberRequest request)
+    {
+        var team = await _teamService.GetTeamByIdAsync(id);
+        if (team == null) return NotFound();
+
+        var member = new TeamMember
+        {
+            MemberType = request.MemberType,
+            MemberName = request.MemberName,
+            Badge = request.Badge
+        };
+
+        var updated = await _teamService.UpdateMemberAsync(id, memberId, member);
+        if (updated == null) return NotFound();
+
+        return Ok(new TeamMemberDto(updated.Id, updated.TeamId, updated.MemberType, updated.MemberName, updated.Badge));
+    }
+
+    [HttpDelete("{id:guid}/members/{memberId:guid}")]
+    public async Task<IActionResult> DeleteMember(Guid id, Guid memberId)
+    {
+        var team = await _teamService.GetTeamByIdAsync(id);
+        if (team == null) return NotFound();
+
+        var result = await _teamService.DeleteMemberAsync(id, memberId);
+        if (!result) return NotFound();
+
+        return NoContent();
+    }
+
     [HttpGet("{id:guid}/events")]
     public async Task<ActionResult<IEnumerable<CollisionWarningDto>>> GetTeamEvents(
         Guid id,
         [FromQuery] DateTime? startTime = null,
         [FromQuery] DateTime? endTime = null)
     {
+        var team = await _teamService.GetTeamByIdAsync(id);
+        if (team == null) return NotFound();
+
         var events = await _teamService.GetTeamEventsAsync(id, startTime, endTime);
         var dtos = events.Select(w => new CollisionWarningDto(
             w.Id, w.ForkliftId, w.PersonnelId, w.ZoneId,
@@ -88,5 +156,29 @@ public class TeamsController : ControllerBase
             w.Message, w.IsAcknowledged, w.AcknowledgedBy,
             w.AcknowledgedAt, w.CreatedAt));
         return Ok(dtos);
+    }
+
+    [HttpGet("{id:guid}/statistics")]
+    public async Task<ActionResult<TeamStatisticsDto>> GetTeamStatistics(
+        Guid id,
+        [FromQuery] DateTime? startTime = null,
+        [FromQuery] DateTime? endTime = null)
+    {
+        var team = await _teamService.GetTeamByIdAsync(id);
+        if (team == null) return NotFound();
+
+        var stats = await _teamService.GetTeamStatisticsAsync(id, startTime, endTime);
+
+        return Ok(new TeamStatisticsDto(
+            id,
+            team.Name,
+            stats.TotalMembers,
+            stats.TotalEvents,
+            stats.HighRiskEvents,
+            stats.MediumRiskEvents,
+            stats.LowRiskEvents,
+            stats.SafetyScore,
+            startTime,
+            endTime));
     }
 }

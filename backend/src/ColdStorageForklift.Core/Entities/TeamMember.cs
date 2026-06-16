@@ -13,6 +13,7 @@ public class TeamMember
 
 public enum MemberType
 {
-    ForkliftOperator = 0,
-    Pedestrian = 1
+    Operator = 0,
+    Worker = 1,
+    Supervisor = 2
 }

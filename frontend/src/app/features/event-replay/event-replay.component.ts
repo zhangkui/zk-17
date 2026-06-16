@@ -6,8 +6,10 @@ import {
   EventRecord,
   EventReplayDto,
   PositionRecordDto,
-  warningTypeText,
-  riskLevelText
+  eventTypeText,
+  riskLevelText,
+  EventType,
+  RiskLevel
 } from '../../core/models';
 
 interface ReplayFrame {
@@ -34,7 +36,7 @@ interface ReplayFrame {
       <select class="form-control" [(ngModel)]="selectedEventId" style="width:300px;" (change)="selectEvent()">
         <option value="">选择事件</option>
         @for (e of events; track e.id) {
-          <option [value]="e.id">{{ warningTypeText(e.type) }} - {{ e.forkliftName }} ({{ e.timestamp | date:'HH:mm:ss' }})</option>
+          <option [value]="e.id">{{ eventTypeText(e.type) }} - {{ e.forkliftName }} ({{ e.timestamp | date:'HH:mm:ss' }})</option>
         }
       </select>
     </div>
@@ -79,8 +81,12 @@ export class EventReplayComponent implements OnInit, AfterViewInit, OnDestroy {
   currentFrameIndex = 0;
   totalFrames = 0;
 
-  warningTypeText = warningTypeText;
-  riskLevelText = riskLevelText;
+  eventTypeText(type: EventType): string {
+    return eventTypeText(type);
+  }
+  riskLevelText(level: RiskLevel | string): string {
+    return riskLevelText(level);
+  }
 
   private ctx!: CanvasRenderingContext2D;
   private animFrameId = 0;
@@ -207,12 +213,12 @@ export class EventReplayComponent implements OnInit, AfterViewInit, OnDestroy {
     const personnelMap = new Map<string, { name: string; positions: PositionRecordDto[] }>();
 
     for (const pos of positions) {
-      if (pos.entityType === 'Forklift' || pos.entityType === '0') {
+      if (pos.entityType === 'Forklift') {
         if (!forkliftMap.has(pos.entityId)) {
           forkliftMap.set(pos.entityId, { name: `叉车-${pos.entityId.substring(0, 4)}`, positions: [] });
         }
         forkliftMap.get(pos.entityId)!.positions.push(pos);
-      } else if (pos.entityType === 'Personnel' || pos.entityType === '1') {
+      } else if (pos.entityType === 'Personnel') {
         if (!personnelMap.has(pos.entityId)) {
           personnelMap.set(pos.entityId, { name: `人员-${pos.entityId.substring(0, 4)}`, positions: [] });
         }

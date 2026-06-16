@@ -14,6 +14,7 @@ public class Forklift
     public double BlindSpotRadius { get; set; } = 8.0;
     public DateTime LastPositionUpdate { get; set; }
     public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
     public Team? Team { get; set; }
     public List<BlindSpotZone> BlindSpotZones { get; set; } = [];
 }
@@ -22,5 +23,6 @@ public enum ForkliftStatus
 {
     Online = 0,
     Offline = 1,
-    Maintenance = 2
+    Charging = 2,
+    Maintenance = 3
 }

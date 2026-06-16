@@ -31,6 +31,8 @@ builder.Services.AddScoped<IBlindSpotService, BlindSpotService>();
 builder.Services.AddScoped<ICollisionWarningService, CollisionWarningService>();
 builder.Services.AddScoped<IEventReplayService, EventReplayService>();
 builder.Services.AddScoped<ITeamService, TeamService>();
+builder.Services.AddScoped<IForkliftService, ForkliftService>();
+builder.Services.AddScoped<IPersonnelService, PersonnelService>();
 builder.Services.AddScoped<IStatisticsService, StatisticsService>();
 
 builder.Services.AddSingleton<IRabbitMqService>(sp =>
@@ -47,7 +49,23 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.EnsureCreated();
+    var retryCount = 0;
+    var maxRetries = 10;
+    while (retryCount < maxRetries)
+    {
+        try
+        {
+            db.Database.EnsureCreated();
+            break;
+        }
+        catch (Exception)
+        {
+            retryCount++;
+            if (retryCount >= maxRetries) throw;
+            Console.WriteLine($"Database connection failed, retrying in 5 seconds... (attempt {retryCount}/{maxRetries})");
+            System.Threading.Thread.Sleep(5000);
+        }
+    }
 }
 
 if (app.Environment.IsDevelopment())

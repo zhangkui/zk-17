@@ -8,7 +8,8 @@ import {
   ZoneRiskDto,
   TeamSafetyDto,
   riskLevelText,
-  riskLevelValue
+  riskLevelValue,
+  riskLevel
 } from '../../core/models';
 
 @Component({

@@ -22,6 +22,14 @@ import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/rou
             <span class="nav-icon">🗺️</span>
             <span>区域建模</span>
           </a>
+          <a routerLink="/forklift-management" routerLinkActive="active" class="nav-item">
+            <span class="nav-icon">🚜</span>
+            <span>叉车管理</span>
+          </a>
+          <a routerLink="/personnel-management" routerLinkActive="active" class="nav-item">
+            <span class="nav-icon">👤</span>
+            <span>人员管理</span>
+          </a>
           <a routerLink="/blind-spot" routerLinkActive="active" class="nav-item">
             <span class="nav-icon">👁️</span>
             <span>盲区识别</span>

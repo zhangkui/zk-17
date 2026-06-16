@@ -6,6 +6,8 @@ export const routes: Routes = [
   { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
   { path: 'dashboard', loadComponent: () => import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent) },
   { path: 'zone-modeling', loadComponent: () => import('./features/zone-modeling/zone-modeling.component').then(m => m.ZoneModelingComponent) },
+  { path: 'forklift-management', loadComponent: () => import('./features/forklift-management/forklift-management.component').then(m => m.ForkliftManagementComponent) },
+  { path: 'personnel-management', loadComponent: () => import('./features/personnel-management/personnel-management.component').then(m => m.PersonnelManagementComponent) },
   { path: 'blind-spot', loadComponent: () => import('./features/blind-spot/blind-spot.component').then(m => m.BlindSpotComponent) },
   { path: 'collision-warning', loadComponent: () => import('./features/collision-warning/collision-warning.component').then(m => m.CollisionWarningComponent) },
   { path: 'event-replay', loadComponent: () => import('./features/event-replay/event-replay.component').then(m => m.EventReplayComponent) },

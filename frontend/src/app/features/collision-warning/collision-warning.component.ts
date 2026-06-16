@@ -49,7 +49,7 @@ import { Warning, riskLevelText, warningTypeText } from '../../core/models';
         </div>
         <div class="warning-list-scroll" style="max-height:460px;">
           @for (w of warnings; track w.id) {
-            <div class="warning-item" [style.animation]="w.level === 'critical' ? 'blink 1s infinite' : 'none'" style="cursor:pointer;flex-direction:column;align-items:flex-start;gap:4px;" (click)="showDetail(w)">
+            <div class="warning-item" [style.animation]="w.level === 'Critical' ? 'blink 1s infinite' : 'none'" style="cursor:pointer;flex-direction:column;align-items:flex-start;gap:4px;" (click)="showDetail(w)">
               <div style="display:flex;align-items:center;gap:8px;width:100%;">
                 <span class="warning-dot" [class]="w.level"></span>
                 <span style="color:#e8f0fe;font-weight:500;flex:1;">{{ w.forkliftName }}</span>
@@ -204,7 +204,7 @@ export class CollisionWarningComponent implements OnInit, AfterViewInit, OnDestr
 
     for (const w of this.warnings) {
       const color = levelColors[w.level] || '#2ed573';
-      const pulse = Math.sin(Date.now() / (w.level === 'critical' ? 150 : 300)) * 0.5 + 0.5;
+      const pulse = Math.sin(Date.now() / (w.level === 'Critical' ? 150 : 300)) * 0.5 + 0.5;
 
       ctx.strokeStyle = color;
       ctx.lineWidth = 2;

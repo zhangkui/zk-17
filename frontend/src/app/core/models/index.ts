@@ -1,7 +1,31 @@
+export type ZoneType = 'ColdStorage' | 'Corridor' | 'Loading' | 'Charging' | 'Restricted';
+export type ObstacleType = 'Shelf' | 'Column' | 'Wall' | 'Machine';
+export type ForkliftStatus = 'Online' | 'Offline' | 'Charging' | 'Maintenance';
+export type PersonnelStatus = 'Online' | 'Offline';
+export type MemberType = 'Operator' | 'Worker' | 'Supervisor';
+export type ShiftType = 'Morning' | 'Afternoon' | 'Night';
+export type RiskLevel = 'Low' | 'Medium' | 'High' | 'Critical';
+export type WarningType = 'PersonForkliftApproach' | 'VehicleCollision' | 'BlindSpotIntrusion';
+export type EventType = 'Warning' | 'Collision' | 'BlindSpotIntrusion' | 'ZoneViolation';
+export type PositionEntityType = 'Forklift' | 'Personnel';
+
+export function parseEnum<T extends string>(value: any, defaultValue: T, validValues?: T[]): T {
+  if (value === undefined || value === null) return defaultValue;
+  if (typeof value === 'string') {
+    if (validValues && validValues.includes(value as T)) return value as T;
+    const matched = validValues?.find(v => v.toLowerCase() === String(value).toLowerCase());
+    if (matched) return matched;
+  }
+  if (typeof value === 'number' && validValues && value >= 0 && value < validValues.length) {
+    return validValues[value];
+  }
+  return defaultValue;
+}
+
 export interface Zone {
   id: string;
   name: string;
-  type: 'cold_storage' | 'corridor' | 'loading' | 'charging' | 'restricted';
+  type: ZoneType;
   x: number;
   y: number;
   width: number;
@@ -22,7 +46,7 @@ export interface Obstacle {
   y: number;
   width: number;
   height: number;
-  type: 'shelf' | 'column' | 'wall' | 'machine';
+  type: ObstacleType;
 }
 
 export interface Forklift {
@@ -33,10 +57,9 @@ export interface Forklift {
   position: Position;
   heading: number;
   speed: number;
-  status: 'online' | 'offline' | 'charging' | 'maintenance';
+  status: ForkliftStatus;
   teamId?: string;
-  blindSpotAngle?: number;
-  blindSpotRange?: number;
+  blindSpotRadius?: number;
   lastUpdate: Date;
 }
 
@@ -46,9 +69,8 @@ export interface Personnel {
   code: string;
   badge?: string;
   position: Position;
-  status: 'online' | 'offline';
+  status: PersonnelStatus;
   teamId?: string;
-  role?: 'operator' | 'worker' | 'supervisor';
   lastUpdate: Date;
 }
 
@@ -67,7 +89,7 @@ export interface BlindSpot {
   startAngle: number;
   endAngle: number;
   radius: number;
-  riskLevel: 'critical' | 'high' | 'medium' | 'low';
+  riskLevel: RiskLevel;
   overlappingPersonnel: Personnel[];
   detectedAt?: Date;
   isActive?: boolean;
@@ -75,8 +97,8 @@ export interface BlindSpot {
 
 export interface Warning {
   id: string;
-  type: 'collision' | 'blindspot_intrusion' | 'zone_violation' | 'speed_violation';
-  level: 'critical' | 'high' | 'medium' | 'low';
+  type: WarningType;
+  level: RiskLevel;
   forkliftId: string;
   forkliftName: string;
   personnelId?: string;
@@ -94,8 +116,8 @@ export interface Warning {
 
 export interface EventRecord {
   id: string;
-  type: string;
-  level: 'critical' | 'high' | 'medium' | 'low';
+  type: EventType;
+  level: RiskLevel;
   forkliftId: string;
   forkliftName: string;
   personnelId?: string;
@@ -112,19 +134,21 @@ export interface Team {
   name: string;
   leader: string;
   members: TeamMember[];
-  shift: 'morning' | 'afternoon' | 'night';
+  shift: ShiftType;
   eventCount: number;
   safetyScore: number;
   createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface TeamMember {
   id: string;
   name: string;
-  role: 'operator' | 'worker' | 'supervisor';
+  type: MemberType;
   forkliftId?: string;
   eventCount: number;
   badge?: string;
+  joinedAt?: Date;
 }
 
 export interface Statistics {
@@ -168,13 +192,32 @@ export interface TeamSafetyDto {
 
 export interface EventReplayDto {
   positionRecords: PositionRecordDto[];
-  collisionWarnings: any[];
+  collisionWarnings: CollisionWarningDto[];
   blindSpotChanges: BlindSpotChangeDto[];
+}
+
+export interface CollisionWarningDto {
+  id: string;
+  forkliftId: string;
+  personnelId?: string;
+  zoneId?: string;
+  warningType: WarningType;
+  riskLevel: RiskLevel;
+  distance: number;
+  forkliftPositionX: number;
+  forkliftPositionY: number;
+  personnelPositionX?: number;
+  personnelPositionY?: number;
+  message: string;
+  isAcknowledged: boolean;
+  acknowledgedBy?: string;
+  acknowledgedAt?: Date;
+  createdAt: Date;
 }
 
 export interface PositionRecordDto {
   id: string;
-  entityType: string;
+  entityType: PositionEntityType;
   entityId: string;
   positionX: number;
   positionY: number;
@@ -189,41 +232,91 @@ export interface BlindSpotChangeDto {
   centerX: number;
   centerY: number;
   radius: number;
-  riskLevel: string;
+  riskLevel: RiskLevel;
   detectedAt: Date;
+  isActive?: boolean;
 }
 
-export const zoneTypeColors: Record<string, string> = {
-  cold_storage: '#1e90ff',
-  corridor: '#2ed573',
-  loading: '#ffa502',
-  charging: '#9b59b6',
-  restricted: '#ff4757'
+export const zoneTypeColors: Record<ZoneType, string> = {
+  ColdStorage: '#1e90ff',
+  Corridor: '#2ed573',
+  Loading: '#ffa502',
+  Charging: '#9b59b6',
+  Restricted: '#ff4757'
 };
 
-export function warningTypeText(type: string): string {
-  const map: Record<string, string> = {
-    collision: '碰撞风险',
-    blindspot_intrusion: '盲区入侵',
-    zone_violation: '区域违规',
-    speed_violation: '超速违规'
+export function zoneTypeText(type: ZoneType): string {
+  const map: Record<ZoneType, string> = {
+    ColdStorage: '冷藏区',
+    Corridor: '通道',
+    Loading: '装卸区',
+    Charging: '充电区',
+    Restricted: '限制区'
   };
   return map[type] || type;
 }
 
-export function riskLevelText(level: string): string {
-  const map: Record<string, string> = { critical: '极高', high: '高', medium: '中', low: '低' };
-  return map[level] || level;
+export function obstacleTypeText(type: ObstacleType): string {
+  const map: Record<ObstacleType, string> = {
+    Shelf: '货架',
+    Column: '立柱',
+    Wall: '墙壁',
+    Machine: '设备'
+  };
+  return map[type] || type;
 }
 
-export function shiftText(shift: string): string {
-  const map: Record<string, string> = { morning: '早班', afternoon: '中班', night: '晚班' };
+export function forkliftStatusText(status: ForkliftStatus): string {
+  const map: Record<ForkliftStatus, string> = {
+    Online: '在线',
+    Offline: '离线',
+    Charging: '充电中',
+    Maintenance: '维护中'
+  };
+  return map[status] || status;
+}
+
+export function personnelStatusText(status: PersonnelStatus): string {
+  const map: Record<PersonnelStatus, string> = {
+    Online: '在线',
+    Offline: '离线'
+  };
+  return map[status] || status;
+}
+
+export function warningTypeText(type: WarningType): string {
+  const map: Record<WarningType, string> = {
+    PersonForkliftApproach: '人车接近',
+    VehicleCollision: '车辆碰撞',
+    BlindSpotIntrusion: '盲区入侵'
+  };
+  return map[type] || type;
+}
+
+export function eventTypeText(type: EventType): string {
+  const map: Record<EventType, string> = {
+    Warning: '预警事件',
+    Collision: '碰撞事件',
+    BlindSpotIntrusion: '盲区入侵',
+    ZoneViolation: '区域违规'
+  };
+  return map[type] || type;
+}
+
+export function riskLevelText(level: RiskLevel | string): string {
+  const l = typeof level === 'string' ? parseEnum<RiskLevel>(level, 'Low', ['Low', 'Medium', 'High', 'Critical']) : level;
+  const map: Record<RiskLevel, string> = { Critical: '极高', High: '高', Medium: '中', Low: '低' };
+  return map[l] || String(level);
+}
+
+export function shiftText(shift: ShiftType): string {
+  const map: Record<ShiftType, string> = { Morning: '早班', Afternoon: '中班', Night: '晚班' };
   return map[shift] || shift;
 }
 
-export function roleText(role: string): string {
-  const map: Record<string, string> = { operator: '操作员', worker: '工人', supervisor: '主管' };
-  return map[role] || role;
+export function memberTypeText(type: MemberType): string {
+  const map: Record<MemberType, string> = { Operator: '操作员', Worker: '工人', Supervisor: '主管' };
+  return map[type] || type;
 }
 
 export function directionToHeading(direction: number | undefined): number {
@@ -240,7 +333,15 @@ export function headingToStartEndAngle(heading: number, blindSpotAngle: number =
   };
 }
 
-export function riskLevelValue(level: string): number {
-  const map: Record<string, number> = { critical: 90, high: 70, medium: 50, low: 30 };
-  return map[level] || 30;
+export function riskLevelValue(level: RiskLevel | string): number {
+  const l = typeof level === 'string' ? parseEnum<RiskLevel>(level, 'Low') : level;
+  const map: Record<RiskLevel, number> = { Critical: 90, High: 70, Medium: 50, Low: 30 };
+  return map[l] || 30;
+}
+
+export function riskLevel(value: number): RiskLevel {
+  if (value >= 80) return 'Critical';
+  if (value >= 60) return 'High';
+  if (value >= 40) return 'Medium';
+  return 'Low';
 }

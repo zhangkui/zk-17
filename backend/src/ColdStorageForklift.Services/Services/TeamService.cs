@@ -11,8 +11,12 @@ public interface ITeamService
     Task<Team?> GetTeamByIdAsync(Guid id);
     Task<IEnumerable<Team>> GetAllTeamsAsync();
     Task<TeamMember> AddMemberAsync(Guid teamId, TeamMember member);
+    Task<TeamMember?> UpdateMemberAsync(Guid teamId, Guid memberId, TeamMember member);
+    Task<bool> DeleteMemberAsync(Guid teamId, Guid memberId);
     Task<IEnumerable<TeamMember>> GetMembersAsync(Guid teamId);
     Task<IEnumerable<CollisionWarning>> GetTeamEventsAsync(Guid teamId, DateTime? startTime = null, DateTime? endTime = null);
+    Task<(int TotalMembers, int TotalEvents, int HighRiskEvents, int MediumRiskEvents, int LowRiskEvents, double SafetyScore)> 
+        GetTeamStatisticsAsync(Guid teamId, DateTime? startTime = null, DateTime? endTime = null);
 }
 
 public class TeamService : ITeamService
@@ -53,7 +57,79 @@ public class TeamService : ITeamService
     public async Task DeleteTeamAsync(Guid id)
     {
         var team = await _teamRepository.GetByIdAsync(id);
-        if (team != null) await _teamRepository.DeleteAsync(team);
+        if (team == null) return;
+
+        var members = _memberRepository.Query().Where(m => m.TeamId == id).ToList();
+        foreach (var member in members)
+        {
+            await _memberRepository.DeleteAsync(member);
+        }
+
+        var forklifts = _forkliftRepository.Query().Where(f => f.TeamId == id).ToList();
+        foreach (var forklift in forklifts)
+        {
+            forklift.TeamId = null;
+            await _forkliftRepository.UpdateAsync(forklift);
+        }
+
+        var personnel = _personnelRepository.Query().Where(p => p.TeamId == id).ToList();
+        foreach (var person in personnel)
+        {
+            person.TeamId = null;
+            await _personnelRepository.UpdateAsync(person);
+        }
+
+        await _teamRepository.DeleteAsync(team);
+    }
+
+    public async Task<TeamMember?> UpdateMemberAsync(Guid teamId, Guid memberId, TeamMember member)
+    {
+        var existingMember = await _memberRepository.GetByIdAsync(memberId);
+        if (existingMember == null || existingMember.TeamId != teamId)
+            return null;
+
+        existingMember.MemberType = member.MemberType;
+        existingMember.MemberName = member.MemberName;
+        existingMember.Badge = member.Badge;
+
+        await _memberRepository.UpdateAsync(existingMember);
+        return existingMember;
+    }
+
+    public async Task<bool> DeleteMemberAsync(Guid teamId, Guid memberId)
+    {
+        var member = await _memberRepository.GetByIdAsync(memberId);
+        if (member == null || member.TeamId != teamId)
+            return false;
+
+        await _memberRepository.DeleteAsync(member);
+        return true;
+    }
+
+    public async Task<(int TotalMembers, int TotalEvents, int HighRiskEvents, int MediumRiskEvents, int LowRiskEvents, double SafetyScore)> 
+        GetTeamStatisticsAsync(Guid teamId, DateTime? startTime = null, DateTime? endTime = null)
+    {
+        var team = await _teamRepository.GetByIdAsync(teamId);
+        if (team == null)
+            return (0, 0, 0, 0, 0, 0);
+
+        var totalMembers = _memberRepository.Query().Count(m => m.TeamId == teamId);
+
+        var events = (await GetTeamEventsAsync(teamId, startTime, endTime)).ToList();
+        var totalEvents = events.Count;
+        var criticalRiskEvents = events.Count(e => e.RiskLevel == RiskLevel.Critical);
+        var highRiskEvents = events.Count(e => e.RiskLevel == RiskLevel.High);
+        var mediumRiskEvents = events.Count(e => e.RiskLevel == RiskLevel.Medium);
+        var lowRiskEvents = events.Count(e => e.RiskLevel == RiskLevel.Low);
+
+        double safetyScore = 100.0;
+        if (totalEvents > 0)
+        {
+            var weightedScore = criticalRiskEvents * 20 + highRiskEvents * 10 + mediumRiskEvents * 5 + lowRiskEvents * 2;
+            safetyScore = Math.Max(0, 100 - weightedScore);
+        }
+
+        return (totalMembers, totalEvents, highRiskEvents, mediumRiskEvents, lowRiskEvents, safetyScore);
     }
 
     public async Task<Team?> GetTeamByIdAsync(Guid id)

@@ -16,7 +16,7 @@ public class ZoneObstacle
 public enum ObstacleType
 {
     Shelf = 0,
-    Pillar = 1,
-    Equipment = 2,
+    Column = 1,
+    Machine = 2,
     Wall = 3
 }

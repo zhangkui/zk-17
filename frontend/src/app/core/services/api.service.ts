@@ -12,6 +12,16 @@ import {
   Statistics,
   EventRecord,
   EventReplayDto,
+  ZoneType,
+  ObstacleType,
+  ForkliftStatus,
+  PersonnelStatus,
+  MemberType,
+  ShiftType,
+  RiskLevel,
+  WarningType,
+  EventType,
+  PositionEntityType,
   zoneTypeColors,
   headingToStartEndAngle,
   riskLevelValue
@@ -50,15 +60,101 @@ export class ApiService {
   }
 
   getForklifts(): Observable<Forklift[]> {
-    return this.get<any[]>('/positions/forklifts').pipe(
+    return this.get<any[]>('/forklifts').pipe(
       map(dtos => dtos.map(dto => this.convertForkliftDto(dto)))
     );
   }
 
+  getForkliftById(id: string): Observable<Forklift> {
+    return this.get<any>(`/forklifts/${id}`).pipe(
+      map(dto => this.convertForkliftDto(dto))
+    );
+  }
+
+  getForkliftsByStatus(status: ForkliftStatus): Observable<Forklift[]> {
+    return this.get<any[]>(`/forklifts/status/${status}`).pipe(
+      map(dtos => dtos.map(dto => this.convertForkliftDto(dto)))
+    );
+  }
+
+  getForkliftsByTeam(teamId: string): Observable<Forklift[]> {
+    return this.get<any[]>(`/forklifts/team/${teamId}`).pipe(
+      map(dtos => dtos.map(dto => this.convertForkliftDto(dto)))
+    );
+  }
+
+  createForklift(forklift: { code: string; model: string; teamId?: string; blindSpotRadius: number }): Observable<Forklift> {
+    return this.post<any>('/forklifts', forklift).pipe(
+      map(dto => this.convertForkliftDto(dto))
+    );
+  }
+
+  updateForklift(id: string, forklift: { code: string; model: string; teamId?: string; blindSpotRadius: number }): Observable<Forklift> {
+    return this.put<any>(`/forklifts/${id}`, forklift).pipe(
+      map(dto => this.convertForkliftDto(dto))
+    );
+  }
+
+  updateForkliftStatus(id: string, status: ForkliftStatus): Observable<Forklift> {
+    return this.put<any>(`/forklifts/${id}/status`, { status }).pipe(
+      map(dto => this.convertForkliftDto(dto))
+    );
+  }
+
+  deleteForklift(id: string): Observable<void> {
+    return this.delete<void>(`/forklifts/${id}`);
+  }
+
   getPersonnel(): Observable<Personnel[]> {
-    return this.get<any[]>('/positions/personnel').pipe(
+    return this.get<any[]>('/personnel').pipe(
       map(dtos => dtos.map(dto => this.convertPersonnelDto(dto)))
     );
+  }
+
+  getPersonnelById(id: string): Observable<Personnel> {
+    return this.get<any>(`/personnel/${id}`).pipe(
+      map(dto => this.convertPersonnelDto(dto))
+    );
+  }
+
+  getPersonnelByStatus(status: PersonnelStatus): Observable<Personnel[]> {
+    return this.get<any[]>(`/personnel/status/${status}`).pipe(
+      map(dtos => dtos.map(dto => this.convertPersonnelDto(dto)))
+    );
+  }
+
+  getPersonnelByTeam(teamId: string): Observable<Personnel[]> {
+    return this.get<any[]>(`/personnel/team/${teamId}`).pipe(
+      map(dtos => dtos.map(dto => this.convertPersonnelDto(dto)))
+    );
+  }
+
+  createPersonnel(personnel: { name: string; badge: string; teamId?: string }): Observable<Personnel> {
+    return this.post<any>('/personnel', personnel).pipe(
+      map(dto => this.convertPersonnelDto(dto))
+    );
+  }
+
+  updatePersonnel(id: string, personnel: { name: string; badge: string; teamId?: string }): Observable<Personnel> {
+    return this.put<any>(`/personnel/${id}`, personnel).pipe(
+      map(dto => this.convertPersonnelDto(dto))
+    );
+  }
+
+  updatePersonnelStatus(id: string, status: PersonnelStatus): Observable<Personnel> {
+    return this.put<any>(`/personnel/${id}/status`, { status }).pipe(
+      map(dto => this.convertPersonnelDto(dto))
+    );
+  }
+
+  assignPersonnelToTeam(id: string, teamId: string | null): Observable<Personnel> {
+    return this.put<any>(`/personnel/${id}/team`, { teamId }).pipe(
+      map(dto => this.convertPersonnelDto(dto))
+    );
+  }
+
+  deletePersonnel(id: string): Observable<void> {
+    return this.delete<void>(`/personnel/${id}`);
   }
 
   getBlindSpots(): Observable<BlindSpot[]> {
@@ -99,6 +195,12 @@ export class ApiService {
     );
   }
 
+  getZoneById(id: string): Observable<Zone> {
+    return this.get<any>(`/zones/${id}`).pipe(
+      map(dto => this.convertZoneDto(dto))
+    );
+  }
+
   createZone(zone: Zone): Observable<Zone> {
     const body = {
       name: zone.name,
@@ -133,6 +235,26 @@ export class ApiService {
 
   deleteZone(id: string): Observable<void> {
     return this.delete<void>(`/zones/${id}`);
+  }
+
+  getZoneObstacles(zoneId: string): Observable<any[]> {
+    return this.get<any[]>(`/zones/${zoneId}/obstacles`);
+  }
+
+  createObstacle(zoneId: string, obstacle: { name: string; positionX: number; positionY: number; width: number; height: number; type: ObstacleType }): Observable<any> {
+    return this.post<any>(`/zones/${zoneId}/obstacles`, obstacle);
+  }
+
+  updateObstacle(obstacleId: string, obstacle: { name: string; positionX: number; positionY: number; width: number; height: number; type: ObstacleType }): Observable<any> {
+    return this.put<any>(`/zones/obstacles/${obstacleId}`, obstacle);
+  }
+
+  deleteObstacle(obstacleId: string): Observable<void> {
+    return this.delete<void>(`/zones/obstacles/${obstacleId}`);
+  }
+
+  associateObstacles(zoneId: string, obstacleIds: string[]): Observable<void> {
+    return this.put<void>(`/zones/${zoneId}/obstacles/associate`, { obstacleIds });
   }
 
   getStatistics(): Observable<Statistics> {
@@ -170,15 +292,63 @@ export class ApiService {
     );
   }
 
+  getTeamById(id: string): Observable<Team> {
+    return this.get<any>(`/teams/${id}`).pipe(
+      map(dto => this.convertTeamDetailDto(dto))
+    );
+  }
+
+  createTeam(team: { name: string; shift: ShiftType; leader: string }): Observable<Team> {
+    return this.post<any>('/teams', team).pipe(
+      map(dto => this.convertTeamDto(dto, []))
+    );
+  }
+
+  updateTeam(id: string, team: { name: string; shift: ShiftType; leader: string }): Observable<Team> {
+    return this.put<any>(`/teams/${id}`, team).pipe(
+      map(dto => this.convertTeamDto(dto, []))
+    );
+  }
+
+  deleteTeam(id: string): Observable<void> {
+    return this.delete<void>(`/teams/${id}`);
+  }
+
   getTeamMembers(teamId: string): Observable<TeamMember[]> {
     return this.get<any[]>(`/teams/${teamId}/members`).pipe(
       map(dtos => dtos.map(dto => this.convertTeamMemberDto(dto)))
     );
   }
 
-  getTeamEvents(teamId: string): Observable<Warning[]> {
+  addTeamMember(teamId: string, member: { type: MemberType; memberName: string; badge: string }): Observable<TeamMember> {
+    return this.post<any>(`/teams/${teamId}/members`, member).pipe(
+      map(dto => this.convertTeamMemberDto(dto))
+    );
+  }
+
+  updateTeamMember(teamId: string, memberId: string, member: { memberType: MemberType; memberName: string; badge: string }): Observable<TeamMember> {
+    return this.put<any>(`/teams/${teamId}/members/${memberId}`, member).pipe(
+      map(dto => this.convertTeamMemberDto(dto))
+    );
+  }
+
+  deleteTeamMember(teamId: string, memberId: string): Observable<void> {
+    return this.delete<void>(`/teams/${teamId}/members/${memberId}`);
+  }
+
+  getTeamStatistics(teamId: string, startTime?: string, endTime?: string): Observable<any> {
+    const params: Record<string, any> = {};
+    if (startTime) params['startTime'] = startTime;
+    if (endTime) params['endTime'] = endTime;
+    return this.get<any>(`/teams/${teamId}/statistics`, params);
+  }
+
+  getTeamEvents(teamId: string, startTime?: string, endTime?: string): Observable<Warning[]> {
+    const params: Record<string, any> = {};
+    if (startTime) params['startTime'] = startTime;
+    if (endTime) params['endTime'] = endTime;
     return forkJoin({
-      events: this.get<any[]>(`/teams/${teamId}/events`),
+      events: this.get<any[]>(`/teams/${teamId}/events`, params),
       forklifts: this.getForklifts(),
       personnel: this.getPersonnel()
     }).pipe(
@@ -220,7 +390,9 @@ export class ApiService {
       position: { x: dto.currentPositionX || 0, y: dto.currentPositionY || 0 },
       heading: dto.direction || 0,
       speed: dto.speed || 0,
-      status: (dto.status as any) || 'offline',
+      status: this.parseEnum<ForkliftStatus>(dto.status, 'ForkliftStatus', 'Offline'),
+      teamId: dto.teamId,
+      blindSpotRadius: dto.blindSpotRadius,
       lastUpdate: new Date(dto.lastPositionUpdate || Date.now())
     };
   }
@@ -232,7 +404,8 @@ export class ApiService {
       code: dto.badge || dto.id.substring(0, 4).toUpperCase(),
       badge: dto.badge,
       position: { x: dto.currentPositionX || 0, y: dto.currentPositionY || 0 },
-      status: (dto.status as any) || 'offline',
+      status: this.parseEnum<PersonnelStatus>(dto.status, 'PersonnelStatus', 'Offline'),
+      teamId: dto.teamId,
       lastUpdate: new Date(dto.lastPositionUpdate || Date.now())
     };
   }
@@ -255,7 +428,7 @@ export class ApiService {
       startAngle: angles.startAngle,
       endAngle: angles.endAngle,
       radius: dto.radius || 80,
-      riskLevel: (dto.riskLevel as any) || 'low',
+      riskLevel: this.parseEnum<RiskLevel>(dto.riskLevel, 'RiskLevel', 'Low'),
       overlappingPersonnel: overlappingPersonnel,
       detectedAt: new Date(dto.detectedAt || Date.now()),
       isActive: dto.isActive
@@ -273,34 +446,20 @@ export class ApiService {
     const posX = dto.forkliftPositionX ?? dto.positionX ?? 0;
     const posY = dto.forkliftPositionY ?? dto.positionY ?? 0;
 
-    let type: Warning['type'] = 'collision';
-    if (dto.warningType) {
-      const wt = dto.warningType.toLowerCase();
-      if (wt.includes('blind')) type = 'blindspot_intrusion';
-      else if (wt.includes('zone')) type = 'zone_violation';
-      else if (wt.includes('speed')) type = 'speed_violation';
-    }
-
-    let level: Warning['level'] = 'low';
-    if (dto.riskLevel) {
-      const rl = dto.riskLevel.toLowerCase();
-      if (rl === 'critical' || rl === 'high' || rl === 'medium' || rl === 'low') {
-        level = rl;
-      }
-    }
+    const warningType = this.parseEnum<WarningType>(dto.warningType ?? dto.type, 'WarningType', 'PersonForkliftApproach');
+    const riskLevel = this.parseEnum<RiskLevel>(dto.riskLevel, 'RiskLevel', 'Low');
 
     let message = dto.message || '预警';
     if (!dto.message) {
-      if (type === 'collision') message = '人员进入碰撞风险区';
-      else if (type === 'blindspot_intrusion') message = '人员进入盲区范围';
-      else if (type === 'zone_violation') message = '驶入限制区域';
-      else if (type === 'speed_violation') message = `超速行驶 ${dto.speed || ''}`;
+      if (warningType === 'PersonForkliftApproach') message = '人车接近预警';
+      else if (warningType === 'VehicleCollision') message = '车辆碰撞预警';
+      else if (warningType === 'BlindSpotIntrusion') message = '盲区入侵预警';
     }
 
     return {
       id: dto.id,
-      type,
-      level,
+      type: warningType,
+      level: riskLevel,
       forkliftId: dto.forkliftId,
       forkliftName: forklift?.name || `叉车-${dto.forkliftId?.substring(0, 4)}`,
       personnelId: dto.personnelId,
@@ -309,7 +468,7 @@ export class ApiService {
       position: { x: posX, y: posY },
       distance: dto.distance,
       message,
-      timestamp: new Date(dto.createdAt || Date.now()),
+      timestamp: new Date(dto.createdAt || dto.timestamp || Date.now()),
       status: dto.isAcknowledged ? 'acknowledged' : 'active',
       isAcknowledged: dto.isAcknowledged,
       acknowledgedBy: dto.acknowledgedBy,
@@ -318,16 +477,17 @@ export class ApiService {
   }
 
   private convertZoneDto(dto: any): Zone {
+    const zoneType = this.parseEnum<ZoneType>(dto.type, 'ZoneType', 'ColdStorage');
     return {
       id: dto.id,
       name: dto.name,
-      type: dto.type as Zone['type'],
+      type: zoneType,
       x: dto.positionX || 0,
       y: dto.positionY || 0,
       width: dto.width || 100,
       height: dto.height || 100,
       temperature: dto.temperature,
-      color: zoneTypeColors[dto.type] || '#1e90ff',
+      color: zoneTypeColors[zoneType] || '#1e90ff',
       isHighRisk: dto.isHighRisk,
       obstacles: Array.isArray(dto.obstacles)
         ? dto.obstacles.map((o: any) => ({
@@ -337,7 +497,7 @@ export class ApiService {
             y: o.positionY || 0,
             width: o.width || 10,
             height: o.height || 10,
-            type: o.type
+            type: this.parseEnum<ObstacleType>(o.type, 'ObstacleType', 'Shelf')
           }))
         : [],
       createdAt: dto.createdAt ? new Date(dto.createdAt) : undefined,
@@ -350,27 +510,38 @@ export class ApiService {
       id: dto.id,
       name: dto.name,
       leader: dto.leader || '',
-      shift: (dto.shift as any) || 'morning',
+      shift: this.parseEnum<ShiftType>(dto.shift, 'ShiftType', 'Morning'),
       members: members.map(m => this.convertTeamMemberDto(m)),
       eventCount: 0,
       safetyScore: 100,
-      createdAt: dto.createdAt ? new Date(dto.createdAt) : undefined
+      createdAt: dto.createdAt ? new Date(dto.createdAt) : undefined,
+      updatedAt: dto.updatedAt ? new Date(dto.updatedAt) : undefined
+    };
+  }
+
+  private convertTeamDetailDto(dto: any): Team {
+    return {
+      id: dto.id,
+      name: dto.name,
+      leader: dto.leader || '',
+      shift: this.parseEnum<ShiftType>(dto.shift, 'ShiftType', 'Morning'),
+      members: Array.isArray(dto.members) ? dto.members.map((m: any) => this.convertTeamMemberDto(m)) : [],
+      eventCount: 0,
+      safetyScore: 100,
+      createdAt: dto.createdAt ? new Date(dto.createdAt) : undefined,
+      updatedAt: dto.updatedAt ? new Date(dto.updatedAt) : undefined
     };
   }
 
   private convertTeamMemberDto(dto: any): TeamMember {
-    let role: TeamMember['role'] = 'worker';
-    if (dto.memberType) {
-      const mt = dto.memberType.toLowerCase();
-      if (mt.includes('operator')) role = 'operator';
-      else if (mt.includes('supervisor')) role = 'supervisor';
-    }
+    const memberType = this.parseEnum<MemberType>(dto.memberType ?? dto.type, 'MemberType', 'Worker');
     return {
       id: dto.id,
       name: dto.memberName || dto.name || '',
-      role,
+      type: memberType,
       badge: dto.badge,
-      eventCount: 0
+      eventCount: 0,
+      joinedAt: dto.joinedAt ? new Date(dto.joinedAt) : undefined
     };
   }
 
@@ -382,7 +553,7 @@ export class ApiService {
     const warning = this.convertWarningDto(dto, forkliftMap, personnelMap);
     return {
       id: warning.id,
-      type: warning.type,
+      type: this.parseEnum<EventType>(dto.eventType ?? warning.type, 'EventType', 'Warning'),
       level: warning.level,
       forkliftId: warning.forkliftId,
       forkliftName: warning.forkliftName,
@@ -394,6 +565,45 @@ export class ApiService {
       duration: 0,
       teamId: dto.teamId || ''
     };
+  }
+
+  private parseEnum<T>(value: any, enumName: string, defaultValue: T): T {
+    if (value === undefined || value === null) return defaultValue;
+    if (typeof value === 'string') {
+      const validValues: Record<string, string[]> = {
+        ZoneType: ['ColdStorage', 'Corridor', 'Loading', 'Charging', 'Restricted'],
+        ObstacleType: ['Shelf', 'Column', 'Wall', 'Machine'],
+        ForkliftStatus: ['Online', 'Offline', 'Charging', 'Maintenance'],
+        PersonnelStatus: ['Online', 'Offline'],
+        MemberType: ['Operator', 'Worker', 'Supervisor'],
+        ShiftType: ['Morning', 'Afternoon', 'Night'],
+        RiskLevel: ['Low', 'Medium', 'High', 'Critical'],
+        WarningType: ['PersonForkliftApproach', 'VehicleCollision', 'BlindSpotIntrusion'],
+        EventType: ['Warning', 'Collision', 'BlindSpotIntrusion', 'ZoneViolation'],
+        PositionEntityType: ['Forklift', 'Personnel']
+      };
+      const valid = validValues[enumName];
+      if (valid && valid.includes(value)) return value as T;
+      const matched = valid?.find(v => v.toLowerCase() === String(value).toLowerCase());
+      if (matched) return matched as T;
+    }
+    if (typeof value === 'number') {
+      const enumMaps: Record<string, string[]> = {
+        ZoneType: ['ColdStorage', 'Corridor', 'Loading', 'Charging', 'Restricted'],
+        ObstacleType: ['Shelf', 'Column', 'Wall', 'Machine'],
+        ForkliftStatus: ['Online', 'Offline', 'Charging', 'Maintenance'],
+        PersonnelStatus: ['Online', 'Offline'],
+        MemberType: ['Operator', 'Worker', 'Supervisor'],
+        ShiftType: ['Morning', 'Afternoon', 'Night'],
+        RiskLevel: ['Low', 'Medium', 'High', 'Critical'],
+        WarningType: ['PersonForkliftApproach', 'VehicleCollision', 'BlindSpotIntrusion'],
+        EventType: ['Warning', 'Collision', 'BlindSpotIntrusion', 'ZoneViolation'],
+        PositionEntityType: ['Forklift', 'Personnel']
+      };
+      const map = enumMaps[enumName];
+      if (map && value >= 0 && value < map.length) return map[value] as T;
+    }
+    return defaultValue;
   }
 
   private getDateDaysAgo(days: number): string {

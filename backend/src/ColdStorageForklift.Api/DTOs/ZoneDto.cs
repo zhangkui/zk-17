@@ -44,3 +44,22 @@ public record UpdateZoneRequest(
     double PositionY,
     double? Temperature,
     bool IsHighRisk);
+
+public record CreateObstacleRequest(
+    string Name,
+    double PositionX,
+    double PositionY,
+    double Width,
+    double Height,
+    ObstacleType Type);
+
+public record UpdateObstacleRequest(
+    string Name,
+    double PositionX,
+    double PositionY,
+    double Width,
+    double Height,
+    ObstacleType Type);
+
+public record AssociateObstaclesRequest(
+    List<Guid> ObstacleIds);

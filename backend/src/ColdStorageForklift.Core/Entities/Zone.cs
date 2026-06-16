@@ -21,7 +21,8 @@ public class Zone
 public enum ZoneType
 {
     ColdStorage = 0,
-    Aisle = 1,
-    LoadingArea = 2,
-    ChargingArea = 3
+    Corridor = 1,
+    Loading = 2,
+    Charging = 3,
+    Restricted = 4
 }

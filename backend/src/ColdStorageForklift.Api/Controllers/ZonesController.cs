@@ -101,4 +101,88 @@ public class ZonesController : ControllerBase
         await _zoneService.DeleteZoneAsync(id);
         return NoContent();
     }
+
+    [HttpGet("{zoneId:guid}/obstacles")]
+    public async Task<ActionResult<IEnumerable<ZoneObstacleDto>>> GetObstaclesByZone(Guid zoneId)
+    {
+        var zone = await _zoneService.GetZoneByIdAsync(zoneId);
+        if (zone == null) return NotFound();
+
+        var obstacles = _obstacleRepository.Query()
+            .Where(o => o.ZoneId == zoneId)
+            .Select(o => new ZoneObstacleDto(o.Id, o.Name, o.PositionX, o.PositionY, o.Width, o.Height, o.Type))
+            .ToList();
+
+        return Ok(obstacles);
+    }
+
+    [HttpPost("{zoneId:guid}/obstacles")]
+    public async Task<ActionResult<ZoneObstacleDto>> CreateObstacle(Guid zoneId, [FromBody] CreateObstacleRequest request)
+    {
+        var zone = await _zoneService.GetZoneByIdAsync(zoneId);
+        if (zone == null) return NotFound();
+
+        var obstacle = new ZoneObstacle
+        {
+            ZoneId = zoneId,
+            Name = request.Name,
+            PositionX = request.PositionX,
+            PositionY = request.PositionY,
+            Width = request.Width,
+            Height = request.Height,
+            Type = request.Type
+        };
+
+        var created = await _obstacleRepository.AddAsync(obstacle);
+
+        return CreatedAtAction(nameof(GetObstaclesByZone), new { zoneId = zoneId },
+            new ZoneObstacleDto(created.Id, created.Name, created.PositionX, created.PositionY, created.Width, created.Height, created.Type));
+    }
+
+    [HttpPut("obstacles/{obstacleId:guid}")]
+    public async Task<ActionResult<ZoneObstacleDto>> UpdateObstacle(Guid obstacleId, [FromBody] UpdateObstacleRequest request)
+    {
+        var obstacle = await _obstacleRepository.GetByIdAsync(obstacleId);
+        if (obstacle == null) return NotFound();
+
+        obstacle.Name = request.Name;
+        obstacle.PositionX = request.PositionX;
+        obstacle.PositionY = request.PositionY;
+        obstacle.Width = request.Width;
+        obstacle.Height = request.Height;
+        obstacle.Type = request.Type;
+
+        await _obstacleRepository.UpdateAsync(obstacle);
+
+        return Ok(new ZoneObstacleDto(obstacle.Id, obstacle.Name, obstacle.PositionX, obstacle.PositionY, obstacle.Width, obstacle.Height, obstacle.Type));
+    }
+
+    [HttpDelete("obstacles/{obstacleId:guid}")]
+    public async Task<IActionResult> DeleteObstacle(Guid obstacleId)
+    {
+        var obstacle = await _obstacleRepository.GetByIdAsync(obstacleId);
+        if (obstacle == null) return NotFound();
+
+        await _obstacleRepository.DeleteAsync(obstacle);
+        return NoContent();
+    }
+
+    [HttpPut("{zoneId:guid}/obstacles/associate")]
+    public async Task<IActionResult> AssociateObstacles(Guid zoneId, [FromBody] AssociateObstaclesRequest request)
+    {
+        var zone = await _zoneService.GetZoneByIdAsync(zoneId);
+        if (zone == null) return NotFound();
+
+        foreach (var obstacleId in request.ObstacleIds)
+        {
+            var obstacle = await _obstacleRepository.GetByIdAsync(obstacleId);
+            if (obstacle != null)
+            {
+                obstacle.ZoneId = zoneId;
+                await _obstacleRepository.UpdateAsync(obstacle);
+            }
+        }
+
+        return NoContent();
+    }
 }
