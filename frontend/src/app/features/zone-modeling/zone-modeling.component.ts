@@ -47,7 +47,9 @@ interface ToastMessage {
         <div class="card">
           <div class="card-header">
             <h3>障碍物列表</h3>
-            <button class="btn btn-primary" (click)="addObstacle()" [disabled]="!selectedZone">+ 新增</button>
+            <button class="btn btn-primary" (click)="addObstacle()" [disabled]="!selectedZone || isSavingObstacle">
+              @if (isSavingObstacle) { 保存中... } @else { + 新增 }
+            </button>
           </div>
           <div class="card-body" style="padding:0;">
             @if (!selectedZone) {
@@ -63,7 +65,7 @@ interface ToastMessage {
                       <span class="obstacle-type" [style.borderColor]="obstacleTypeColors[o.type]">{{ obstacleTypeText(o.type) }}</span>
                     </div>
                     <div class="obstacle-info">
-                      <span>位置: ({{ o.x }}, {{ o.y }})</span>
+                      <span>相对位置: ({{ o.relativeX }}, {{ o.relativeY }})</span>
                       <span>尺寸: {{ o.width }}×{{ o.height }}</span>
                     </div>
                     <div class="obstacle-actions">
@@ -94,98 +96,98 @@ interface ToastMessage {
         </div>
 
         @if (editingZone) {
-          <div class="card">
-            <div class="card-header">
-              <h3>区域属性</h3>
-              <div style="display:flex;gap:8px;">
-                <button class="btn btn-secondary" (click)="cancelEditZone()">取消</button>
-                <button class="btn btn-success" (click)="saveZone()">保存</button>
-              </div>
-            </div>
-            <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-              <div class="form-group">
-                <label>名称</label>
-                <input class="form-control" [(ngModel)]="editingZone.name" />
-              </div>
-              <div class="form-group">
-                <label>类型</label>
-                <select class="form-control" [(ngModel)]="editingZone.type">
-                  @for (zt of zoneTypes; track zt) {
-                    <option [ngValue]="zt">{{ zoneTypeText(zt) }}</option>
-                  }
-                </select>
-              </div>
-              <div class="form-group">
-                <label>X</label>
-                <input class="form-control" type="number" [(ngModel)]="editingZone.x" />
-              </div>
-              <div class="form-group">
-                <label>Y</label>
-                <input class="form-control" type="number" [(ngModel)]="editingZone.y" />
-              </div>
-              <div class="form-group">
-                <label>宽度</label>
-                <input class="form-control" type="number" [(ngModel)]="editingZone.width" />
-              </div>
-              <div class="form-group">
-                <label>高度</label>
-                <input class="form-control" type="number" [(ngModel)]="editingZone.height" />
-              </div>
-              <div class="form-group">
-                <label>温度(℃)</label>
-                <input class="form-control" type="number" [(ngModel)]="editingZone.temperature" />
-              </div>
-              <div class="form-group">
-                <label>高风险区</label>
-                <select class="form-control" [(ngModel)]="editingZone.isHighRisk">
-                  <option [ngValue]="false">否</option>
-                  <option [ngValue]="true">是</option>
-                </select>
-              </div>
+        <div class="card">
+          <div class="card-header">
+            <h3>区域属性</h3>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-secondary" (click)="cancelEditZone()">取消</button>
+              <button class="btn btn-success" (click)="saveZone()">保存</button>
             </div>
           </div>
+          <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label>名称</label>
+              <input class="form-control" [(ngModel)]="editingZone.name" />
+            </div>
+            <div class="form-group">
+              <label>类型</label>
+              <select class="form-control" [(ngModel)]="editingZone.type">
+                @for (zt of zoneTypes; track zt) {
+                  <option [ngValue]="zt">{{ zoneTypeText(zt) }}</option>
+                }
+              </select>
+            </div>
+            <div class="form-group">
+              <label>X</label>
+              <input class="form-control" type="number" [(ngModel)]="editingZone.x" />
+            </div>
+            <div class="form-group">
+              <label>Y</label>
+              <input class="form-control" type="number" [(ngModel)]="editingZone.y" />
+            </div>
+            <div class="form-group">
+              <label>宽度</label>
+              <input class="form-control" type="number" [(ngModel)]="editingZone.width" />
+            </div>
+            <div class="form-group">
+              <label>高度</label>
+              <input class="form-control" type="number" [(ngModel)]="editingZone.height" />
+            </div>
+            <div class="form-group">
+              <label>温度(℃)</label>
+              <input class="form-control" type="number" [(ngModel)]="editingZone.temperature" />
+            </div>
+            <div class="form-group">
+              <label>高风险区</label>
+              <select class="form-control" [(ngModel)]="editingZone.isHighRisk">
+                <option [ngValue]="false">否</option>
+                <option [ngValue]="true">是</option>
+              </select>
+            </div>
+          </div>
+        </div>
         }
 
         @if (editingObstacle) {
-          <div class="card">
-            <div class="card-header">
-              <h3>障碍物属性 - {{ isNewObstacle ? '新增' : '编辑' }}</h3>
-              <div style="display:flex;gap:8px;">
-                <button class="btn btn-secondary" (click)="cancelEditObstacle()">取消</button>
-                <button class="btn btn-success" (click)="saveObstacle()">保存</button>
-              </div>
-            </div>
-            <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-              <div class="form-group">
-                <label>名称</label>
-                <input class="form-control" [(ngModel)]="editingObstacle.name" />
-              </div>
-              <div class="form-group">
-                <label>类型</label>
-                <select class="form-control" [(ngModel)]="editingObstacle.type">
-                  @for (ot of obstacleTypes; track ot) {
-                    <option [ngValue]="ot">{{ obstacleTypeText(ot) }}</option>
-                  }
-                </select>
-              </div>
-              <div class="form-group">
-                <label>位置 X</label>
-                <input class="form-control" type="number" [(ngModel)]="editingObstacle.x" />
-              </div>
-              <div class="form-group">
-                <label>位置 Y</label>
-                <input class="form-control" type="number" [(ngModel)]="editingObstacle.y" />
-              </div>
-              <div class="form-group">
-                <label>宽度</label>
-                <input class="form-control" type="number" [(ngModel)]="editingObstacle.width" />
-              </div>
-              <div class="form-group">
-                <label>高度</label>
-                <input class="form-control" type="number" [(ngModel)]="editingObstacle.height" />
-              </div>
+        <div class="card">
+          <div class="card-header">
+            <h3>障碍物属性</h3>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-secondary" (click)="cancelEditObstacle()">取消</button>
+              <button class="btn btn-success" (click)="saveObstacle()">保存</button>
             </div>
           </div>
+          <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label>名称</label>
+              <input class="form-control" [(ngModel)]="editingObstacle.name" />
+            </div>
+            <div class="form-group">
+              <label>类型</label>
+              <select class="form-control" [(ngModel)]="editingObstacle.type">
+                @for (ot of obstacleTypes; track ot) {
+                  <option [ngValue]="ot">{{ obstacleTypeText(ot) }}</option>
+                }
+              </select>
+            </div>
+            <div class="form-group">
+              <label>相对位置 X</label>
+              <input class="form-control" type="number" [(ngModel)]="editingObstacle.relativeX" />
+            </div>
+            <div class="form-group">
+              <label>相对位置 Y</label>
+              <input class="form-control" type="number" [(ngModel)]="editingObstacle.relativeY" />
+            </div>
+            <div class="form-group">
+              <label>宽度</label>
+              <input class="form-control" type="number" [(ngModel)]="editingObstacle.width" />
+            </div>
+            <div class="form-group">
+              <label>高度</label>
+              <input class="form-control" type="number" [(ngModel)]="editingObstacle.height" />
+            </div>
+          </div>
+        </div>
         }
       </div>
     </div>
@@ -385,13 +387,13 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
   @ViewChild('zoneCanvas', { static: true }) canvasRef!: ElementRef<HTMLCanvasElement>;
 
   zones: Zone[] = [];
-  obstacles: Obstacle[] = [];
+  obstacles: ObstacleEx[] = [];
   selectedZone: Zone | null = null;
   editingZone: Zone | null = null;
-  selectedObstacle: Obstacle | null = null;
-  editingObstacle: Obstacle | null = null;
-  isNewObstacle = false;
+  selectedObstacle: ObstacleEx | null = null;
+  editingObstacle: ObstacleEx | null = null;
   isNewZone = false;
+  isSavingObstacle = false;
 
   toasts: ToastMessage[] = [];
   confirmDialog: {
@@ -409,7 +411,7 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
   private dragCurrent = { x: 0, y: 0 };
   private dragOffset = { x: 0, y: 0 };
   private dragTargetZone: Zone | null = null;
-  private dragTargetObstacle: Obstacle | null = null;
+  private dragTargetObstacle: ObstacleEx | null = null;
   private hasMoved = false;
 
   zoneTypeColors = zoneTypeColors;
@@ -467,10 +469,29 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
     }
   }
 
+  private getAbsoluteX(zone: Zone, relativeX: number): number {
+    return zone.x + relativeX;
+  }
+
+  private getAbsoluteY(zone: Zone, relativeY: number): number {
+    return zone.y + relativeY;
+  }
+
+  private getRelativeX(zone: Zone, absoluteX: number): number {
+    return absoluteX - zone.x;
+  }
+
+  private getRelativeY(zone: Zone, absoluteY: number): number {
+    return absoluteY - zone.y;
+  }
+
   private loadZones(): void {
     this.api.getZones().subscribe({
       next: d => {
-        this.zones = d;
+        this.zones = d.map(z => ({
+          ...z,
+          obstacles: (z.obstacles || []).map(o => this.convertObstacleDto(o, z))
+        }));
         this.drawCanvas();
       },
       error: err => {
@@ -478,6 +499,22 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
         this.showToast('error', '加载区域数据失败');
       }
     });
+  }
+
+  private convertObstacleDto(dto: any, zone: Zone): ObstacleEx {
+    const relativeX = dto.positionX || 0;
+    const relativeY = dto.positionY || 0;
+    return {
+      id: dto.id,
+      name: dto.name,
+      x: this.getAbsoluteX(zone, relativeX),
+      y: this.getAbsoluteY(zone, relativeY),
+      relativeX: relativeX,
+      relativeY: relativeY,
+      width: dto.width || 10,
+      height: dto.height || 10,
+      type: this.parseObstacleType(dto.type)
+    };
   }
 
   addZone(): void {
@@ -514,13 +551,13 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
 
   selectZone(zone: Zone): void {
     this.selectedZone = zone;
-    this.obstacles = zone.obstacles || [];
+    this.obstacles = (zone.obstacles || []).map(o => ({ ...o })) as ObstacleEx[];
     this.selectedObstacle = null;
     this.editingObstacle = null;
     this.drawCanvas();
   }
 
-  selectObstacle(obstacle: Obstacle): void {
+  selectObstacle(obstacle: ObstacleEx): void {
     this.selectedObstacle = obstacle;
     this.drawCanvas();
   }
@@ -573,8 +610,19 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
     this.api.updateZone(this.editingZone).subscribe({
       next: updated => {
         const idx = this.zones.findIndex(z => z.id === updated.id);
-        if (idx >= 0) this.zones[idx] = updated;
-        if (this.selectedZone?.id === updated.id) this.selectedZone = updated;
+        if (idx >= 0) {
+          const updatedWithObs = {
+            ...updated,
+            obstacles: this.zones[idx].obstacles || []
+          };
+          this.zones[idx] = updatedWithObs;
+        }
+        if (this.selectedZone?.id === updated.id) {
+          this.selectedZone = {
+            ...updated,
+            obstacles: this.selectedZone.obstacles || []
+          };
+        }
         this.editingZone = null;
         this.isNewZone = false;
         this.drawCanvas();
@@ -594,32 +642,39 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
   addObstacle(): void {
     if (!this.selectedZone) return;
 
-    let posX = this.selectedZone.x + 20;
-    let posY = this.selectedZone.y + 20;
+    this.isSavingObstacle = true;
+
     const obstacleWidth = 40;
     const obstacleHeight = 40;
 
-    const existingPositions = this.obstacles.map(o => ({ x: o.x, y: o.y, w: o.width, h: o.height }));
-    const overlaps = (x: number, y: number) => {
-      return existingPositions.some(p =>
-        x < p.x + p.w && x + obstacleWidth > p.x &&
-        y < p.y + p.h && y + obstacleHeight > p.y
+    const existingRelativePositions = this.obstacles.map(o => ({
+      x: o.relativeX,
+      y: o.relativeY,
+      w: o.width,
+      h: o.height
+    }));
+
+    const overlaps = (rx: number, ry: number) => {
+      return existingRelativePositions.some(p =>
+        rx < p.x + p.w && rx + obstacleWidth > p.x &&
+        ry < p.y + p.h && ry + obstacleHeight > p.y
       );
     };
 
-    const zoneRight = this.selectedZone.x + this.selectedZone.width - obstacleWidth - 10;
-    const zoneBottom = this.selectedZone.y + this.selectedZone.height - obstacleHeight - 10;
+    const zoneMaxX = this.selectedZone.width - obstacleWidth - 4;
+    const zoneMaxY = this.selectedZone.height - obstacleHeight - 4;
 
+    let relX = 20;
+    let relY = 20;
     let found = false;
+
     outer:
     for (let dy = 20; dy < this.selectedZone.height; dy += 15) {
       for (let dx = 20; dx < this.selectedZone.width; dx += 15) {
-        const tx = this.selectedZone.x + dx;
-        const ty = this.selectedZone.y + dy;
-        if (tx > zoneRight || ty > zoneBottom) continue;
-        if (!overlaps(tx, ty)) {
-          posX = tx;
-          posY = ty;
+        if (dx > zoneMaxX || dy > zoneMaxY) continue;
+        if (!overlaps(dx, dy)) {
+          relX = dx;
+          relY = dy;
           found = true;
           break outer;
         }
@@ -627,43 +682,45 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
     }
 
     if (!found) {
-      posX = Math.min(posX, zoneRight);
-      posY = Math.min(posY, zoneBottom);
+      relX = Math.min(relX, zoneMaxX);
+      relY = Math.min(relY, zoneMaxY);
     }
 
-    const newObstacle: Obstacle = {
-      id: crypto.randomUUID(),
+    const obstacleData = {
       name: '新障碍物',
-      type: 'Shelf',
-      x: posX,
-      y: posY,
+      positionX: relX,
+      positionY: relY,
       width: obstacleWidth,
-      height: obstacleHeight
+      height: obstacleHeight,
+      type: 'Shelf' as ObstacleType
     };
 
-    this.obstacles.push({ ...newObstacle });
-    this.editingObstacle = { ...newObstacle };
-    this.selectedObstacle = { ...newObstacle };
-    this.isNewObstacle = true;
-    this.updateZoneObstacles();
-    this.drawCanvas();
+    this.api.createObstacle(this.selectedZone.id, obstacleData).subscribe({
+      next: (created: any) => {
+        const converted = this.convertObstacleDto(created, this.selectedZone!);
+        this.obstacles.push(converted);
+        this.editingObstacle = { ...converted };
+        this.selectedObstacle = { ...converted };
+        this.updateZoneObstacles();
+        this.drawCanvas();
+        this.isSavingObstacle = false;
+        this.showToast('success', '障碍物创建成功');
+      },
+      error: err => {
+        console.error('创建障碍物失败:', err);
+        this.showToast('error', '创建障碍物失败');
+        this.isSavingObstacle = false;
+      }
+    });
   }
 
-  editObstacle(obstacle: Obstacle): void {
+  editObstacle(obstacle: ObstacleEx): void {
     this.editingObstacle = { ...obstacle };
     this.selectedObstacle = obstacle;
-    this.isNewObstacle = false;
   }
 
   cancelEditObstacle(): void {
-    if (this.isNewObstacle && this.editingObstacle) {
-      this.obstacles = this.obstacles.filter(o => o.id !== this.editingObstacle!.id);
-      if (this.selectedObstacle?.id === this.editingObstacle.id) this.selectedObstacle = null;
-      this.updateZoneObstacles();
-    }
     this.editingObstacle = null;
-    this.isNewObstacle = false;
-    this.drawCanvas();
   }
 
   saveObstacle(): void {
@@ -671,54 +728,29 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
 
     const obstacleData = {
       name: this.editingObstacle.name,
-      positionX: this.editingObstacle.x,
-      positionY: this.editingObstacle.y,
+      positionX: this.editingObstacle.relativeX,
+      positionY: this.editingObstacle.relativeY,
       width: this.editingObstacle.width,
       height: this.editingObstacle.height,
       type: this.editingObstacle.type
     };
 
-    if (this.isNewObstacle) {
-      this.api.createObstacle(this.selectedZone.id, obstacleData).subscribe({
-        next: (created: any) => {
-          const converted = this.convertObstacleDto(created);
-          const idx = this.obstacles.findIndex(o => o.id === this.editingObstacle!.id);
-          if (idx >= 0) {
-            this.obstacles[idx] = converted;
-          } else {
-            this.obstacles.push(converted);
-          }
-          this.updateZoneObstacles();
-          this.editingObstacle = null;
-          this.isNewObstacle = false;
-          this.selectedObstacle = converted;
-          this.drawCanvas();
-          this.showToast('success', '障碍物创建成功');
-        },
-        error: err => {
-          console.error('创建障碍物失败:', err);
-          this.showToast('error', '创建障碍物失败');
-        }
-      });
-    } else {
-      this.api.updateObstacle(this.editingObstacle.id, obstacleData).subscribe({
-        next: (updated: any) => {
-          const converted = this.convertObstacleDto(updated);
-          const idx = this.obstacles.findIndex(o => o.id === converted.id);
-          if (idx >= 0) this.obstacles[idx] = converted;
-          this.updateZoneObstacles();
-          this.editingObstacle = null;
-          this.isNewObstacle = false;
-          this.selectedObstacle = converted;
-          this.drawCanvas();
-          this.showToast('success', '障碍物更新成功');
-        },
-        error: err => {
-          console.error('更新障碍物失败:', err);
-          this.showToast('error', '更新障碍物失败');
-        }
-      });
-    }
+    this.api.updateObstacle(this.editingObstacle.id, obstacleData).subscribe({
+      next: (updated: any) => {
+        const converted = this.convertObstacleDto(updated, this.selectedZone!);
+        const idx = this.obstacles.findIndex(o => o.id === converted.id);
+        if (idx >= 0) this.obstacles[idx] = converted;
+        this.updateZoneObstacles();
+        this.editingObstacle = null;
+        this.selectedObstacle = converted;
+        this.drawCanvas();
+        this.showToast('success', '障碍物更新成功');
+      },
+      error: err => {
+        console.error('更新障碍物失败:', err);
+        this.showToast('error', '更新障碍物失败');
+      }
+    });
   }
 
   deleteObstacle(id: string): void {
@@ -736,10 +768,7 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
             this.obstacles = this.obstacles.filter(o => o.id !== id);
             this.updateZoneObstacles();
             if (this.selectedObstacle?.id === id) this.selectedObstacle = null;
-            if (this.editingObstacle?.id === id) {
-              this.editingObstacle = null;
-              this.isNewObstacle = false;
-            }
+            if (this.editingObstacle?.id === id) this.editingObstacle = null;
             this.drawCanvas();
             this.showToast('success', `障碍物「${obstacle.name}」删除成功`);
           },
@@ -762,18 +791,6 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
     }
   }
 
-  private convertObstacleDto(dto: any): Obstacle {
-    return {
-      id: dto.id,
-      name: dto.name,
-      x: dto.positionX || 0,
-      y: dto.positionY || 0,
-      width: dto.width || 10,
-      height: dto.height || 10,
-      type: this.parseObstacleType(dto.type)
-    };
-  }
-
   private parseObstacleType(value: any): ObstacleType {
     const validValues: ObstacleType[] = ['Shelf', 'Column', 'Wall', 'Machine'];
     if (typeof value === 'string' && validValues.includes(value as ObstacleType)) {
@@ -793,7 +810,7 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
     const clickedObstacle = this.findObstacleAt(x, y);
     if (clickedObstacle) {
       this.selectObstacle(clickedObstacle);
-      const zone = this.zones.find(z => z.obstacles?.some(o => o.id === clickedObstacle.id));
+      const zone = this.zones.find(z => z.obstacles?.some((o: any) => o.id === clickedObstacle.id));
       if (zone && this.selectedZone?.id !== zone.id) {
         this.selectZone(zone);
       }
@@ -820,10 +837,10 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
     this.dragMode = 'createZone';
   }
 
-  private findObstacleAt(x: number, y: number): Obstacle | null {
+  private findObstacleAt(x: number, y: number): ObstacleEx | null {
     for (let i = this.zones.length - 1; i >= 0; i--) {
       const zone = this.zones[i];
-      const obs = zone.obstacles || [];
+      const obs = (zone.obstacles as ObstacleEx[]) || [];
       for (let j = obs.length - 1; j >= 0; j--) {
         const o = obs[j];
         if (x >= o.x && x <= o.x + o.width && y >= o.y && y <= o.y + o.height) {
@@ -863,23 +880,29 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
       let newX = Math.max(0, Math.min(canvas.width - this.dragTargetZone.width, x - this.dragOffset.x));
       let newY = Math.max(0, Math.min(canvas.height - this.dragTargetZone.height, y - this.dragOffset.y));
 
+      const deltaX = newX - this.dragTargetZone.x;
+      const deltaY = newY - this.dragTargetZone.y;
+
       this.dragTargetZone.x = newX;
       this.dragTargetZone.y = newY;
+
+      const zoneObs = (this.dragTargetZone.obstacles as ObstacleEx[]) || [];
+      for (const o of zoneObs) {
+        o.x = o.x + deltaX;
+        o.y = o.y + deltaY;
+      }
 
       const idx = this.zones.findIndex(z => z.id === this.dragTargetZone!.id);
       if (idx >= 0) this.zones[idx] = { ...this.dragTargetZone };
       if (this.selectedZone?.id === this.dragTargetZone.id) this.selectedZone = { ...this.dragTargetZone };
-      if (this.editingZone?.id === this.dragTargetZone.id) {
-        this.editingZone.x = newX;
-        this.editingZone.y = newY;
+      const editZone = this.editingZone;
+      if (editZone != null && editZone.id === this.dragTargetZone.id) {
+        editZone.x = newX;
+        editZone.y = newY;
       }
 
-      const zoneObs = this.dragTargetZone.obstacles || [];
-      for (const o of zoneObs) {
-        const oIdx = this.obstacles.findIndex(ob => ob.id === o.id);
-        if (oIdx >= 0 && this.selectedZone?.id === this.dragTargetZone.id) {
-          this.obstacles[oIdx] = { ...o };
-        }
+      if (this.selectedZone?.id === this.dragTargetZone.id) {
+        this.obstacles = [...zoneObs];
       }
 
       this.drawCanvas();
@@ -889,20 +912,25 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
     if (this.dragMode === 'moveObstacle' && this.dragTargetObstacle && this.selectedZone) {
       const canvas = this.canvasRef.nativeElement;
       const zone = this.selectedZone;
-      let newX = x - this.dragOffset.x;
-      let newY = y - this.dragOffset.y;
+      let newAbsX = x - this.dragOffset.x;
+      let newAbsY = y - this.dragOffset.y;
 
-      newX = Math.max(zone.x + 4, Math.min(zone.x + zone.width - this.dragTargetObstacle.width - 4, newX));
-      newX = Math.max(0, Math.min(canvas.width - this.dragTargetObstacle.width, newX));
-      newY = Math.max(zone.y + 4, Math.min(zone.y + zone.height - this.dragTargetObstacle.height - 4, newY));
-      newY = Math.max(0, Math.min(canvas.height - this.dragTargetObstacle.height, newY));
+      newAbsX = Math.max(zone.x + 4, Math.min(zone.x + zone.width - this.dragTargetObstacle.width - 4, newAbsX));
+      newAbsX = Math.max(0, Math.min(canvas.width - this.dragTargetObstacle.width, newAbsX));
+      newAbsY = Math.max(zone.y + 4, Math.min(zone.y + zone.height - this.dragTargetObstacle.height - 4, newAbsY));
+      newAbsY = Math.max(0, Math.min(canvas.height - this.dragTargetObstacle.height, newAbsY));
 
-      this.dragTargetObstacle.x = newX;
-      this.dragTargetObstacle.y = newY;
+      const newRelX = this.getRelativeX(zone, newAbsX);
+      const newRelY = this.getRelativeY(zone, newAbsY);
+
+      this.dragTargetObstacle.x = newAbsX;
+      this.dragTargetObstacle.y = newAbsY;
+      this.dragTargetObstacle.relativeX = newRelX;
+      this.dragTargetObstacle.relativeY = newRelY;
 
       const zoneIdx = this.zones.findIndex(z => z.id === zone.id);
       if (zoneIdx >= 0) {
-        const zObs = this.zones[zoneIdx].obstacles || [];
+        const zObs = (this.zones[zoneIdx].obstacles as ObstacleEx[]) || [];
         const oIdx = zObs.findIndex(o => o.id === this.dragTargetObstacle!.id);
         if (oIdx >= 0) {
           zObs[oIdx] = { ...this.dragTargetObstacle };
@@ -920,10 +948,11 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
       if (this.selectedObstacle?.id === this.dragTargetObstacle.id) {
         this.selectedObstacle = { ...this.dragTargetObstacle };
       }
-      const editObs = this.editingObstacle;
-      if (editObs != null && editObs.id === this.dragTargetObstacle.id) {
-        editObs.x = newX;
-        editObs.y = newY;
+      if (this.editingObstacle?.id === this.dragTargetObstacle.id) {
+        this.editingObstacle.relativeX = newRelX;
+        this.editingObstacle.relativeY = newRelY;
+        this.editingObstacle.x = newAbsX;
+        this.editingObstacle.y = newAbsY;
       }
 
       this.drawCanvas();
@@ -947,8 +976,19 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
       this.api.updateZone(zoneData).subscribe({
         next: (updated: any) => {
           const idx = this.zones.findIndex(z => z.id === updated.id);
-          if (idx >= 0) this.zones[idx] = updated;
-          if (this.selectedZone?.id === updated.id) this.selectedZone = updated;
+          if (idx >= 0) {
+            this.zones[idx] = {
+              ...updated,
+              obstacles: this.zones[idx].obstacles || []
+            };
+          }
+          const selZone = this.selectedZone;
+          if (selZone?.id === updated.id) {
+            this.selectedZone = {
+              ...updated,
+              obstacles: selZone!.obstacles || []
+            };
+          }
           const editZone = this.editingZone;
           if (editZone != null && editZone.id === updated.id) {
             editZone.x = updated.x;
@@ -965,23 +1005,26 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
     } else if (this.dragMode === 'moveObstacle' && this.dragTargetObstacle && this.hasMoved) {
       const obstacleData = {
         name: this.dragTargetObstacle.name,
-        positionX: this.dragTargetObstacle.x,
-        positionY: this.dragTargetObstacle.y,
+        positionX: this.dragTargetObstacle.relativeX,
+        positionY: this.dragTargetObstacle.relativeY,
         width: this.dragTargetObstacle.width,
         height: this.dragTargetObstacle.height,
         type: this.dragTargetObstacle.type
       };
       this.api.updateObstacle(this.dragTargetObstacle.id, obstacleData).subscribe({
         next: (updated: any) => {
-          const converted = this.convertObstacleDto(updated);
+          const zone = this.selectedZone;
+          if (!zone) return;
+          const converted = this.convertObstacleDto(updated, zone);
           const idx = this.obstacles.findIndex(o => o.id === converted.id);
           if (idx >= 0) this.obstacles[idx] = converted;
           this.updateZoneObstacles();
           if (this.selectedObstacle?.id === converted.id) this.selectedObstacle = converted;
-          const editObsConv = this.editingObstacle;
-          if (editObsConv != null && editObsConv.id === converted.id) {
-            editObsConv.x = converted.x;
-            editObsConv.y = converted.y;
+          if (this.editingObstacle?.id === converted.id) {
+            this.editingObstacle.relativeX = converted.relativeX;
+            this.editingObstacle.relativeY = converted.relativeY;
+            this.editingObstacle.x = converted.x;
+            this.editingObstacle.y = converted.y;
           }
           this.drawCanvas();
           this.showToast('success', '障碍物位置已更新');
@@ -1078,22 +1121,24 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
     }
 
     for (const z of this.zones) {
-      const zoneObstacles = z.obstacles || [];
+      const zoneObstacles = (z.obstacles as ObstacleEx[]) || [];
       for (const o of zoneObstacles) {
+        const absX = o.x;
+        const absY = o.y;
         const color = this.obstacleTypeColors[o.type];
         ctx.fillStyle = color + '55';
-        ctx.fillRect(o.x, o.y, o.width, o.height);
+        ctx.fillRect(absX, absY, o.width, o.height);
         ctx.strokeStyle = this.selectedObstacle?.id === o.id ? '#00d4ff' : color;
         ctx.lineWidth = this.selectedObstacle?.id === o.id ? 3 : 1.5;
-        ctx.strokeRect(o.x, o.y, o.width, o.height);
+        ctx.strokeRect(absX, absY, o.width, o.height);
         ctx.fillStyle = color;
         ctx.font = '10px sans-serif';
-        ctx.fillText(o.name, o.x + 4, o.y + 14);
+        ctx.fillText(o.name, absX + 4, absY + 14);
         if (this.dragMode === 'moveObstacle' && this.dragTargetObstacle?.id === o.id) {
           ctx.setLineDash([3, 2]);
           ctx.strokeStyle = '#ffff88';
           ctx.lineWidth = 1;
-          ctx.strokeRect(o.x - 2, o.y - 2, o.width + 4, o.height + 4);
+          ctx.strokeRect(absX - 2, absY - 2, o.width + 4, o.height + 4);
           ctx.setLineDash([]);
         }
       }
@@ -1113,4 +1158,9 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
       ctx.fillRect(minX, minY, w, h);
     }
   }
+}
+
+interface ObstacleEx extends Obstacle {
+  relativeX: number;
+  relativeY: number;
 }
