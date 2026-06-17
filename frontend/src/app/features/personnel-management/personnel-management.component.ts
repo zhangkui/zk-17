@@ -58,18 +58,18 @@ import {
           <div class="card-header">
             <h3>人员列表</h3>
             <div style="display:flex;gap:8px;">
-              <select class="form-input" [(ngModel)]="filterStatus" (change)="applyFilter()" style="width:120px;">
-                <option [value]="null">全部状态</option>
+              <select class="form-control" [(ngModel)]="filterStatus" (change)="applyFilter()" style="width:120px;">
+                <option [ngValue]="null">全部状态</option>
                 <option value="Online">在线</option>
                 <option value="Offline">离线</option>
               </select>
-              <select class="form-input" [(ngModel)]="filterTeamId" (change)="applyFilter()" style="width:140px;">
-                <option [value]="null">全部班组</option>
+              <select class="form-control" [(ngModel)]="filterTeamId" (change)="applyFilter()" style="width:140px;">
+                <option [ngValue]="null">全部班组</option>
                 @for (t of teams; track t.id) {
                   <option [value]="t.id">{{ t.name }}</option>
                 }
               </select>
-              <input class="form-input" [(ngModel)]="searchKeyword" (input)="applyFilter()" placeholder="搜索姓名/工号" style="width:160px;" />
+              <input class="form-control" [(ngModel)]="searchKeyword" (input)="applyFilter()" placeholder="搜索姓名/工号" style="width:160px;" />
               <button class="btn btn-primary" (click)="openAddModal()">+ 新增人员</button>
             </div>
           </div>
@@ -109,11 +109,11 @@ import {
                       <td>{{ p.lastUpdate | date:'MM-dd HH:mm' }}</td>
                       <td>
                         <div style="display:flex;gap:4px;">
-                          <button class="btn btn-sm" (click)="openEditModal(p)">编辑</button>
-                          <button class="btn btn-sm" [class]="p.status === 'Online' ? 'btn-warning' : 'btn-success'" (click)="toggleStatus(p)">
+                          <button class="btn btn-outline" style="padding:2px 8px;font-size:11px;" (click)="openEditModal(p)">编辑</button>
+                          <button class="btn" style="padding:2px 8px;font-size:11px;" [class]="p.status === 'Online' ? 'btn-warning' : 'btn-success'" (click)="toggleStatus(p)">
                             {{ p.status === 'Online' ? '停用' : '启用' }}
                           </button>
-                          <button class="btn btn-sm btn-danger" (click)="confirmDelete(p)">删除</button>
+                          <button class="btn btn-danger" style="padding:2px 8px;font-size:11px;" (click)="confirmDelete(p)">删除</button>
                         </div>
                       </td>
                     </tr>
@@ -205,34 +205,32 @@ import {
 
     @if (showModal) {
       <div class="modal-overlay" (click)="closeModal()">
-        <div class="modal-content" (click)="$event.stopPropagation()" style="width:480px;">
+        <div class="modal" (click)="$event.stopPropagation()">
           <div class="modal-header">
             <h3>{{ isEdit ? '编辑人员' : '新增人员' }}</h3>
-            <button class="btn btn-sm" (click)="closeModal()">×</button>
+            <button class="btn btn-outline" style="padding:4px 8px;" (click)="closeModal()">×</button>
           </div>
           <div class="modal-body">
-            <div style="display:flex;flex-direction:column;gap:16px;">
-              <div>
-                <label style="display:block;margin-bottom:6px;color:#5a7a9a;font-size:13px;">姓名</label>
-                <input class="form-input" [(ngModel)]="formData.name" placeholder="请输入姓名" />
-              </div>
-              <div>
-                <label style="display:block;margin-bottom:6px;color:#5a7a9a;font-size:13px;">工号</label>
-                <input class="form-input" [(ngModel)]="formData.badge" placeholder="请输入工号" />
-              </div>
-              <div>
-                <label style="display:block;margin-bottom:6px;color:#5a7a9a;font-size:13px;">所属班组</label>
-                <select class="form-input" [(ngModel)]="formData.teamId">
-                  <option [value]="null">请选择班组</option>
-                  @for (t of teams; track t.id) {
-                    <option [value]="t.id">{{ t.name }}</option>
-                  }
-                </select>
-              </div>
+            <div class="form-group">
+              <label>姓名</label>
+              <input class="form-control" [(ngModel)]="formData.name" placeholder="请输入姓名" />
+            </div>
+            <div class="form-group">
+              <label>工号</label>
+              <input class="form-control" [(ngModel)]="formData.badge" placeholder="请输入工号" />
+            </div>
+            <div class="form-group">
+              <label>所属班组</label>
+              <select class="form-control" [(ngModel)]="formData.teamId">
+                <option [ngValue]="null">请选择班组</option>
+                @for (t of teams; track t.id) {
+                  <option [value]="t.id">{{ t.name }}</option>
+                }
+              </select>
             </div>
           </div>
           <div class="modal-footer">
-            <button class="btn" (click)="closeModal()">取消</button>
+            <button class="btn btn-outline" (click)="closeModal()">取消</button>
             <button class="btn btn-primary" (click)="savePersonnel()">{{ isEdit ? '保存' : '创建' }}</button>
           </div>
         </div>
@@ -241,7 +239,7 @@ import {
 
     @if (showDeleteConfirm) {
       <div class="modal-overlay" (click)="showDeleteConfirm = false">
-        <div class="modal-content" (click)="$event.stopPropagation()" style="width:400px;">
+        <div class="modal" (click)="$event.stopPropagation()" style="width:400px;">
           <div class="modal-header">
             <h3>确认删除</h3>
           </div>
@@ -249,14 +247,60 @@ import {
             <p style="color:#5a7a9a;">确定要删除人员「{{ personnelToDelete?.name }}」吗？此操作不可撤销。</p>
           </div>
           <div class="modal-footer">
-            <button class="btn" (click)="showDeleteConfirm = false">取消</button>
+            <button class="btn btn-outline" (click)="showDeleteConfirm = false">取消</button>
             <button class="btn btn-danger" (click)="deletePersonnel()">确认删除</button>
           </div>
         </div>
       </div>
     }
   `,
-  styles: [`:host { display: block; }`]
+  styles: [`
+    :host { display: block; }
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal {
+      background: #0a1929;
+      border: 1px solid #1b3a5c;
+      border-radius: 8px;
+      width: 480px;
+      max-width: 90vw;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid #1b3a5c;
+    }
+    .modal-header h3 {
+      margin: 0;
+      font-size: 16px;
+      color: #e8f0fe;
+    }
+    .modal-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 16px 20px;
+      border-top: 1px solid #1b3a5c;
+    }
+  `]
 })
 export class PersonnelManagementComponent implements OnInit {
   personnel: Personnel[] = [];

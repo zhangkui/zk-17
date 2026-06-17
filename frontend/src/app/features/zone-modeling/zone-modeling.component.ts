@@ -319,7 +319,11 @@ export class ZoneModelingComponent implements OnInit, AfterViewInit {
       width: 40,
       height: 40
     };
+    this.obstacles.push({ ...newObstacle });
     this.editingObstacle = { ...newObstacle };
+    this.selectedObstacle = { ...newObstacle };
+    this.updateZoneObstacles();
+    this.drawCanvas();
   }
 
   editObstacle(obstacle: Obstacle): void {

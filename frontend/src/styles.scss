@@ -251,6 +251,24 @@ canvas {
   color: #00d4ff;
 }
 
+.btn-warning {
+  background: #ffa502;
+  color: #0a1628;
+}
+
+.btn-warning:hover {
+  background: #e69502;
+}
+
+.btn-secondary {
+  background: #1b3a5c;
+  color: #c8d6e5;
+}
+
+.btn-secondary:hover {
+  background: #2a5a8c;
+}
+
 .form-group {
   margin-bottom: 16px;
 }
