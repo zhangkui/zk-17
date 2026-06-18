@@ -1,7 +1,28 @@
 namespace ColdStorageForklift.Services;
 
 using ColdStorageForklift.Core.Entities;
+using ColdStorageForklift.Core.Interfaces;
 using ColdStorageForklift.Infrastructure.Repositories;
+
+public class RiskPredictionResult
+{
+    public Guid ForkliftId { get; set; }
+    public Guid? PersonnelId { get; set; }
+    public WarningType WarningType { get; set; }
+    public RiskLevel RiskLevel { get; set; }
+    public double PredictedDistance { get; set; }
+    public double PredictedCollisionTime { get; set; }
+    public double Confidence { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public double ForkliftPositionX { get; set; }
+    public double ForkliftPositionY { get; set; }
+    public double ForkliftSpeed { get; set; }
+    public double ForkliftDirection { get; set; }
+    public double? PersonnelPositionX { get; set; }
+    public double? PersonnelPositionY { get; set; }
+    public double? PersonnelSpeed { get; set; }
+    public double? PersonnelDirection { get; set; }
+}
 
 public interface IRiskPredictionService
 {
@@ -27,12 +48,15 @@ public class RiskPredictionService : IRiskPredictionService
     private readonly IRepository<CollisionWarning> _warningRepository;
     private readonly IRepository<BlindSpotZone> _blindSpotRepository;
     private readonly IRepository<Team> _teamRepository;
+    private readonly IPositionRepository _positionRepository;
 
     private const double PredictionTimeWindowSeconds = 30;
     private const double WarningDistanceThreshold = 15.0;
     private const double CriticalDistanceThreshold = 3.0;
     private const double HighDistanceThreshold = 5.0;
     private const double MediumDistanceThreshold = 8.0;
+    private const double DefaultPersonSpeed = 1.5;
+    private const int PositionLookbackSeconds = 30;
 
     public RiskPredictionService(
         IRepository<PredictionWarning> predictionRepository,
@@ -41,7 +65,8 @@ public class RiskPredictionService : IRiskPredictionService
         IRepository<Zone> zoneRepository,
         IRepository<CollisionWarning> warningRepository,
         IRepository<BlindSpotZone> blindSpotRepository,
-        IRepository<Team> teamRepository)
+        IRepository<Team> teamRepository,
+        IPositionRepository positionRepository)
     {
         _predictionRepository = predictionRepository;
         _forkliftRepository = forkliftRepository;
@@ -50,6 +75,7 @@ public class RiskPredictionService : IRiskPredictionService
         _warningRepository = warningRepository;
         _blindSpotRepository = blindSpotRepository;
         _teamRepository = teamRepository;
+        _positionRepository = positionRepository;
     }
 
     public async Task<List<RiskPredictionResult>> CalculatePredictionsAsync()
@@ -63,11 +89,19 @@ public class RiskPredictionService : IRiskPredictionService
         var blindSpots = (await _blindSpotRepository.GetAllAsync())
             .Where(b => b.IsActive).ToList();
 
+        var personPositionDict = new Dictionary<Guid, PositionRecord?>();
+        foreach (var person in personnel)
+        {
+            var records = await _positionRepository.GetByEntityIdAsync(person.Id);
+            personPositionDict[person.Id] = records.FirstOrDefault();
+        }
+
         foreach (var forklift in forklifts)
         {
             foreach (var person in personnel)
             {
-                var result = CalculatePersonForkliftPrediction(forklift, person, zones, blindSpots);
+                personPositionDict.TryGetValue(person.Id, out var personPosition);
+                var result = CalculatePersonForkliftPrediction(forklift, person, personPosition, zones, blindSpots);
                 if (result != null && result.RiskLevel >= RiskLevel.Low)
                 {
                     results.Add(result);
@@ -88,7 +122,7 @@ public class RiskPredictionService : IRiskPredictionService
     }
 
     private RiskPredictionResult? CalculatePersonForkliftPrediction(
-        Forklift forklift, Personnel person, List<Zone> zones, List<BlindSpotZone> blindSpots)
+        Forklift forklift, Personnel person, PositionRecord? personPosition, List<Zone> zones, List<BlindSpotZone> blindSpots)
     {
         var currentDistance = CalculateDistance(
             forklift.CurrentPositionX, forklift.CurrentPositionY,
@@ -98,8 +132,8 @@ public class RiskPredictionService : IRiskPredictionService
             return null;
 
         var forkliftVel = VelocityFromSpeedDirection(forklift.Speed, forklift.Direction);
-        var personSpeed = person.Status == PersonnelStatus.Online ? 1.5 : 0;
-        var personDirection = CalculatePersonDirection(person);
+        var personSpeed = GetPersonSpeed(person, personPosition);
+        var personDirection = GetPersonDirection(person, personPosition);
         var personVel = VelocityFromSpeedDirection(personSpeed, personDirection);
 
         var relVelX = personVel.x - forkliftVel.x;
@@ -143,7 +177,15 @@ public class RiskPredictionService : IRiskPredictionService
             PredictedDistance = minDistance,
             PredictedCollisionTime = timeToClosest,
             Confidence = confidence,
-            Message = BuildPredictionMessage(WarningType.PersonForkliftApproach, riskLevel, minDistance, timeToClosest)
+            Message = BuildPredictionMessage(WarningType.PersonForkliftApproach, riskLevel, minDistance, timeToClosest),
+            ForkliftPositionX = forklift.CurrentPositionX,
+            ForkliftPositionY = forklift.CurrentPositionY,
+            ForkliftSpeed = forklift.Speed,
+            ForkliftDirection = forklift.Direction,
+            PersonnelPositionX = person.CurrentPositionX,
+            PersonnelPositionY = person.CurrentPositionY,
+            PersonnelSpeed = personSpeed,
+            PersonnelDirection = personDirection
         };
     }
 
@@ -213,8 +255,21 @@ public class RiskPredictionService : IRiskPredictionService
         return (speed * Math.Cos(rad), speed * Math.Sin(rad));
     }
 
-    private static double CalculatePersonDirection(Personnel person)
+    private static double GetPersonSpeed(Personnel person, PositionRecord? positionRecord)
     {
+        if (positionRecord != null && positionRecord.Speed > 0)
+        {
+            return positionRecord.Speed;
+        }
+        return person.Status == PersonnelStatus.Online ? DefaultPersonSpeed : 0;
+    }
+
+    private static double GetPersonDirection(Personnel person, PositionRecord? positionRecord)
+    {
+        if (positionRecord != null)
+        {
+            return positionRecord.Direction;
+        }
         return 0;
     }
 
@@ -353,6 +408,8 @@ public class RiskPredictionService : IRiskPredictionService
             existingActive.ForkliftPositionY = forklift.CurrentPositionY;
             existingActive.ForkliftSpeed = forklift.Speed;
             existingActive.ForkliftDirection = forklift.Direction;
+            existingActive.PersonnelSpeed = result.PersonnelSpeed;
+            existingActive.PersonnelDirection = result.PersonnelDirection;
             existingActive.ExpiresAt = DateTime.UtcNow.AddSeconds(30);
             await _predictionRepository.UpdateAsync(existingActive);
             return existingActive;
@@ -370,22 +427,16 @@ public class RiskPredictionService : IRiskPredictionService
             ForkliftPositionY = forklift.CurrentPositionY,
             ForkliftSpeed = forklift.Speed,
             ForkliftDirection = forklift.Direction,
+            PersonnelPositionX = result.PersonnelPositionX,
+            PersonnelPositionY = result.PersonnelPositionY,
+            PersonnelSpeed = result.PersonnelSpeed,
+            PersonnelDirection = result.PersonnelDirection,
             PredictedCollisionTime = result.PredictedCollisionTime,
             Message = result.Message,
             Status = PredictionStatus.Active,
             CreatedAt = DateTime.UtcNow,
             ExpiresAt = DateTime.UtcNow.AddSeconds(30)
         };
-
-        if (result.PersonnelId.HasValue)
-        {
-            var person = await _personnelRepository.GetByIdAsync(result.PersonnelId.Value);
-            if (person != null)
-            {
-                warning.PersonnelPositionX = person.CurrentPositionX;
-                warning.PersonnelPositionY = person.CurrentPositionY;
-            }
-        }
 
         var zones = await _zoneRepository.GetAllAsync();
         var zone = GetZoneForPosition(forklift.CurrentPositionX, forklift.CurrentPositionY, zones.ToList());
@@ -590,12 +641,93 @@ public class RiskPredictionService : IRiskPredictionService
             summary.AverageResponseTime = responseTimes.Average();
         }
 
+        var positionRecords = (await _positionRepository.GetByTimeRangeAsync(
+            startTime.Value, endTime.Value)).ToList();
+
+        var personnelRecords = positionRecords
+            .Where(p => p.EntityType == PositionEntityType.Personnel)
+            .ToList();
+        var forkliftRecords = positionRecords
+            .Where(p => p.EntityType == PositionEntityType.Forklift)
+            .ToList();
+
+        var trailHeatPeriods = positionRecords
+            .GroupBy(p => p.RecordedAt.Hour)
+            .Select(g => new TrailHeatPeriod
+            {
+                Hour = g.Key,
+                PersonnelCount = g.Count(p => p.EntityType == PositionEntityType.Personnel),
+                ForkliftCount = g.Count(p => p.EntityType == PositionEntityType.Forklift),
+                TotalCount = g.Count()
+            })
+            .OrderByDescending(p => p.TotalCount)
+            .Take(10)
+            .ToList();
+
+        var zoneHeatDict = new Dictionary<Guid, ZoneHeat>();
+        foreach (var zone in zones)
+        {
+            zoneHeatDict[zone.Id] = new ZoneHeat
+            {
+                ZoneId = zone.Id,
+                ZoneName = zone.Name,
+                PersonnelVisitCount = 0,
+                ForkliftVisitCount = 0,
+                TotalVisitCount = 0,
+                HeatScore = 0
+            };
+        }
+
+        foreach (var record in positionRecords)
+        {
+            var zone = GetZoneForPosition(record.PositionX, record.PositionY, zones.ToList());
+            if (zone != null && zoneHeatDict.TryGetValue(zone.Id, out var zoneHeat))
+            {
+                if (record.EntityType == PositionEntityType.Personnel)
+                    zoneHeat.PersonnelVisitCount++;
+                else if (record.EntityType == PositionEntityType.Forklift)
+                    zoneHeat.ForkliftVisitCount++;
+                zoneHeat.TotalVisitCount++;
+            }
+        }
+
+        foreach (var zoneHeat in zoneHeatDict.Values)
+        {
+            zoneHeat.HeatScore = Math.Min(100,
+                zoneHeat.PersonnelVisitCount * 2 + zoneHeat.ForkliftVisitCount * 3);
+        }
+
+        var zoneHeatRanking = zoneHeatDict.Values
+            .Where(z => z.TotalVisitCount > 0)
+            .OrderByDescending(z => z.HeatScore)
+            .ToList();
+
+        var personnelTrailStats = new TrailStats
+        {
+            TotalRecords = personnelRecords.Count,
+            ActiveEntities = personnelRecords.Select(p => p.EntityId).Distinct().Count(),
+            AverageSpeed = personnelRecords.Count > 0 ? personnelRecords.Average(p => p.Speed) : 0,
+            MaxSpeed = personnelRecords.Count > 0 ? personnelRecords.Max(p => p.Speed) : 0
+        };
+
+        var forkliftTrailStats = new TrailStats
+        {
+            TotalRecords = forkliftRecords.Count,
+            ActiveEntities = forkliftRecords.Select(p => p.EntityId).Distinct().Count(),
+            AverageSpeed = forkliftRecords.Count > 0 ? forkliftRecords.Average(p => p.Speed) : 0,
+            MaxSpeed = forkliftRecords.Count > 0 ? forkliftRecords.Max(p => p.Speed) : 0
+        };
+
         return new HistoricalRiskAnalysis
         {
             HighRiskPeriods = highRiskPeriods,
             HighRiskZones = highRiskZones,
             HighRiskTeams = highRiskTeams,
             WarningTypeStats = warningTypeStats,
+            ZoneHeatRanking = zoneHeatRanking,
+            TrailHeatPeriods = trailHeatPeriods,
+            PersonnelTrailStats = personnelTrailStats,
+            ForkliftTrailStats = forkliftTrailStats,
             Summary = summary
         };
     }
@@ -622,7 +754,37 @@ public class HistoricalRiskAnalysis
     public List<ZoneRisk> HighRiskZones { get; set; } = [];
     public List<TeamRisk> HighRiskTeams { get; set; } = [];
     public List<WarningTypeStat> WarningTypeStats { get; set; } = [];
+    public List<ZoneHeat> ZoneHeatRanking { get; set; } = [];
+    public List<TrailHeatPeriod> TrailHeatPeriods { get; set; } = [];
+    public TrailStats PersonnelTrailStats { get; set; } = new();
+    public TrailStats ForkliftTrailStats { get; set; } = new();
     public RiskSummary Summary { get; set; } = new();
+}
+
+public class ZoneHeat
+{
+    public Guid ZoneId { get; set; }
+    public string ZoneName { get; set; } = string.Empty;
+    public int PersonnelVisitCount { get; set; }
+    public int ForkliftVisitCount { get; set; }
+    public int TotalVisitCount { get; set; }
+    public double HeatScore { get; set; }
+}
+
+public class TrailHeatPeriod
+{
+    public int Hour { get; set; }
+    public int PersonnelCount { get; set; }
+    public int ForkliftCount { get; set; }
+    public int TotalCount { get; set; }
+}
+
+public class TrailStats
+{
+    public int TotalRecords { get; set; }
+    public int ActiveEntities { get; set; }
+    public double AverageSpeed { get; set; }
+    public double MaxSpeed { get; set; }
 }
 
 public class TeamRisk

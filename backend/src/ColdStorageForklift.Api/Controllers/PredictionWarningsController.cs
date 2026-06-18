@@ -4,6 +4,7 @@ using ColdStorageForklift.Api.DTOs;
 using ColdStorageForklift.Core.Entities;
 using ColdStorageForklift.Services;
 using Microsoft.AspNetCore.Mvc;
+using Svc = ColdStorageForklift.Services;
 
 [ApiController]
 [Route("api/predictions")]
@@ -120,6 +121,40 @@ public class PredictionWarningsController : ControllerBase
                     Percentage = s.Percentage
                 })
                 .ToList(),
+            ZoneHeatRanking = analysis.ZoneHeatRanking
+                .Select(z => new ZoneHeatDto
+                {
+                    ZoneId = z.ZoneId,
+                    ZoneName = z.ZoneName,
+                    PersonnelVisitCount = z.PersonnelVisitCount,
+                    ForkliftVisitCount = z.ForkliftVisitCount,
+                    TotalVisitCount = z.TotalVisitCount,
+                    HeatScore = z.HeatScore
+                })
+                .ToList(),
+            TrailHeatPeriods = analysis.TrailHeatPeriods
+                .Select(p => new TrailHeatPeriodDto
+                {
+                    Hour = p.Hour,
+                    PersonnelCount = p.PersonnelCount,
+                    ForkliftCount = p.ForkliftCount,
+                    TotalCount = p.TotalCount
+                })
+                .ToList(),
+            PersonnelTrailStats = new TrailStatsDto
+            {
+                TotalRecords = analysis.PersonnelTrailStats.TotalRecords,
+                ActiveEntities = analysis.PersonnelTrailStats.ActiveEntities,
+                AverageSpeed = analysis.PersonnelTrailStats.AverageSpeed,
+                MaxSpeed = analysis.PersonnelTrailStats.MaxSpeed
+            },
+            ForkliftTrailStats = new TrailStatsDto
+            {
+                TotalRecords = analysis.ForkliftTrailStats.TotalRecords,
+                ActiveEntities = analysis.ForkliftTrailStats.ActiveEntities,
+                AverageSpeed = analysis.ForkliftTrailStats.AverageSpeed,
+                MaxSpeed = analysis.ForkliftTrailStats.MaxSpeed
+            },
             Summary = new RiskSummaryDto
             {
                 TotalWarnings = analysis.Summary.TotalWarnings,
@@ -135,7 +170,7 @@ public class PredictionWarningsController : ControllerBase
     }
 
     [HttpPost("calculate")]
-    public async Task<ActionResult<IEnumerable<RiskPredictionResult>>> CalculatePredictions()
+    public async Task<ActionResult<IEnumerable<Svc.RiskPredictionResult>>> CalculatePredictions()
     {
         var results = await _predictionService.CalculatePredictionsAsync();
         return Ok(results);

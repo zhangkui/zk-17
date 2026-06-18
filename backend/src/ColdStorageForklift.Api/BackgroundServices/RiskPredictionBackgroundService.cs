@@ -1,10 +1,11 @@
-namespace ColdStorageForklift.Services;
+namespace ColdStorageForklift.Api.BackgroundServices;
 
+using ColdStorageForklift.Api.Hubs;
+using ColdStorageForklift.Services;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using ColdStorageForklift.Api.Hubs;
 
 public class RiskPredictionBackgroundService : BackgroundService
 {

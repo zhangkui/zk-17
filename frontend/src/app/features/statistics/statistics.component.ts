@@ -2,15 +2,12 @@ import { Component, OnInit, ViewChild, ElementRef, AfterViewInit } from '@angula
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../core/services/api.service';
 import {
-  Statistics,
   HighRiskPeriodDto,
-  WarningTrendDto,
   ZoneRiskDto,
-  TeamSafetyDto,
   HistoricalRiskAnalysis,
   TeamRiskDto,
   WarningTypeStatDto,
-  RiskSummaryDto,
+  TrailHeatPeriodDto,
   riskLevelText,
   riskLevelValue,
   riskLevel,
@@ -68,7 +65,7 @@ import {
 
       <div class="card">
         <div class="card-header">
-          <h3>预警趋势</h3>
+          <h3>轨迹热度时段</h3>
         </div>
         <div class="card-body">
           <canvas #trendCanvas width="500" height="260"></canvas>
@@ -94,7 +91,7 @@ import {
                 </tr>
               </thead>
               <tbody>
-                @for (z of stats.zoneRiskRanking; track z.zoneId; let i = $index) {
+                @for (z of historicalAnalysis?.highRiskZones || []; track z.zoneId; let i = $index) {
                   <tr>
                     <td>{{ i + 1 }}</td>
                     <td>{{ z.zoneName }}</td>
@@ -190,13 +187,6 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
   @ViewChild('radarCanvas', { static: true }) radarCanvasRef!: ElementRef<HTMLCanvasElement>;
   @ViewChild('warningTypeCanvas', { static: true }) warningTypeCanvasRef!: ElementRef<HTMLCanvasElement>;
 
-  stats: Statistics = {
-    hourlyWarnings: [],
-    warningTrend: [],
-    zoneRiskRanking: [],
-    teamSafetyScores: []
-  };
-
   historicalAnalysis: HistoricalRiskAnalysis | null = null;
 
   riskColor = (score: number) => {
@@ -228,13 +218,6 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
   constructor(private api: ApiService) {}
 
   ngOnInit(): void {
-    this.api.getStatistics().subscribe({
-      next: d => {
-        this.stats = d;
-        setTimeout(() => this.drawAll(), 50);
-      }
-    });
-
     this.api.getHistoricalRiskAnalysis().subscribe({
       next: d => {
         this.historicalAnalysis = d;
@@ -244,7 +227,7 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    if (this.stats.hourlyWarnings.length > 0) {
+    if (this.historicalAnalysis) {
       this.drawAll();
     }
   }
@@ -262,7 +245,8 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
     const ctx = canvas.getContext('2d')!;
     const data = new Array(24).fill(0);
 
-    for (const item of this.stats.hourlyWarnings) {
+    const periods = this.historicalAnalysis?.highRiskPeriods || [];
+    for (const item of periods) {
       if (item.hour >= 0 && item.hour < 24) {
         data[item.hour] = item.eventCount;
       }
@@ -321,7 +305,6 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
     const canvas = this.trendCanvasRef?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d')!;
-    const data = this.stats.warningTrend;
     const w = canvas.width, h = canvas.height;
     const padding = { top: 20, right: 20, bottom: 40, left: 50 };
 
@@ -329,11 +312,13 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
     ctx.fillStyle = '#081220';
     ctx.fillRect(0, 0, w, h);
 
-    if (data.length === 0) return;
+    const periods = this.historicalAnalysis?.trailHeatPeriods || [];
+    if (periods.length === 0) return;
 
     const chartW = w - padding.left - padding.right;
     const chartH = h - padding.top - padding.bottom;
-    const maxVal = Math.max(...data.map(d => d.totalCount), 1);
+    const maxVal = Math.max(...periods.map(p => p.totalCount), 1);
+    const barW = chartW / periods.length;
 
     ctx.strokeStyle = '#1b3a5c';
     ctx.lineWidth = 0.5;
@@ -346,54 +331,52 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
       ctx.fillText(Math.round(maxVal - (maxVal / 5) * i).toString(), padding.left - 8, y + 4);
     }
 
-    const gradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + chartH);
-    gradient.addColorStop(0, 'rgba(0,212,255,0.3)');
-    gradient.addColorStop(1, 'rgba(0,212,255,0)');
+    const sortedPeriods = [...periods].sort((a, b) => a.hour - b.hour);
+    for (let i = 0; i < sortedPeriods.length; i++) {
+      const period = sortedPeriods[i];
+      const x = padding.left + i * barW;
+      const totalH = (period.totalCount / maxVal) * chartH;
+      const totalY = padding.top + chartH - totalH;
 
-    ctx.beginPath();
-    ctx.moveTo(padding.left, padding.top + chartH);
-    for (let i = 0; i < data.length; i++) {
-      const x = padding.left + (i / Math.max(data.length - 1, 1)) * chartW;
-      const y = padding.top + chartH - (data[i].totalCount / maxVal) * chartH;
-      ctx.lineTo(x, y);
-    }
-    ctx.lineTo(padding.left + chartW, padding.top + chartH);
-    ctx.closePath();
-    ctx.fillStyle = gradient;
-    ctx.fill();
+      const forkliftH = (period.forkliftCount / maxVal) * chartH;
+      const forkliftY = padding.top + chartH - forkliftH;
 
-    ctx.beginPath();
-    for (let i = 0; i < data.length; i++) {
-      const x = padding.left + (i / Math.max(data.length - 1, 1)) * chartW;
-      const y = padding.top + chartH - (data[i].totalCount / maxVal) * chartH;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.strokeStyle = '#00d4ff';
-    ctx.lineWidth = 2;
-    ctx.stroke();
+      ctx.fillStyle = 'rgba(255,165,2,0.7)';
+      ctx.fillRect(x + 2, forkliftY, (barW - 4) / 2, forkliftH);
 
-    for (let i = 0; i < data.length; i += Math.max(1, Math.floor(data.length / 7))) {
-      const x = padding.left + (i / Math.max(data.length - 1, 1)) * chartW;
+      ctx.fillStyle = 'rgba(0,212,255,0.7)';
+      ctx.fillRect(x + 2 + (barW - 4) / 2, totalY, (barW - 4) / 2, totalH - (forkliftH - totalH));
+
       ctx.fillStyle = '#5a7a9a';
       ctx.font = '9px sans-serif';
       ctx.textAlign = 'center';
-      const dateLabel = typeof data[i].date === 'string'
-        ? data[i].date.substring(5)
-        : new Date(data[i].date).toLocaleDateString().substring(5);
-      ctx.fillText(dateLabel, x, h - padding.bottom + 16);
+      ctx.fillText(period.hour + '时', x + barW / 2, h - padding.bottom + 16);
     }
+
+    ctx.fillStyle = '#ffa502';
+    ctx.fillRect(padding.left + 10, 10, 12, 12);
+    ctx.fillStyle = '#c8d6e5';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('叉车', padding.left + 28, 20);
+
+    ctx.fillStyle = '#00d4ff';
+    ctx.fillRect(padding.left + 80, 10, 12, 12);
+    ctx.fillStyle = '#c8d6e5';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('人员', padding.left + 98, 20);
   }
 
   private drawRadarChart(): void {
     const canvas = this.radarCanvasRef?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d')!;
-    const data = this.stats.teamSafetyScores;
+    const data = this.historicalAnalysis?.highRiskTeams || [];
     const w = canvas.width, h = canvas.height;
     const cx = w / 2, cy = h / 2 + 10;
     const r = Math.min(w, h) / 2 - 50;
-    const labels = ['安全评分', '预警总数', '极高预警', '确认率', '综合评估'];
+    const labels = ['风险评分', '预警总数', '极高预警', '风险占比', '综合评估'];
     const sides = 5;
 
     ctx.clearRect(0, 0, w, h);
@@ -433,15 +416,17 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
     }
 
     const teamColors = ['#00d4ff', '#ffa502', '#2ed573', '#ff4757', '#9b59b6'];
+    const totalMax = Math.max(...data.map(d => d.warningCount), 1);
+    const criticalMax = Math.max(...data.map(d => d.criticalCount), 1);
 
     for (let t = 0; t < data.length; t++) {
       const team = data[t];
       const values = [
-        team.safetyScore,
-        Math.min((team.totalWarnings / 50) * 100, 100),
-        Math.min((team.criticalWarnings / 20) * 100, 100),
-        team.acknowledgedRate * 100,
-        Math.min((team.safetyScore + team.acknowledgedRate * 100) / 2, 100)
+        team.riskScore,
+        Math.min((team.warningCount / totalMax) * 100, 100),
+        Math.min((team.criticalCount / criticalMax) * 100, 100),
+        team.riskScore,
+        Math.min((team.riskScore + (team.criticalCount / Math.max(team.warningCount, 1)) * 100) / 2, 100)
       ];
       const color = teamColors[t % teamColors.length];
 

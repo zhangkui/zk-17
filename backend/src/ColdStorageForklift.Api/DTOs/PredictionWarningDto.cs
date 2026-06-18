@@ -68,7 +68,37 @@ public class HistoricalRiskAnalysisDto
     public List<ZoneRiskDto> HighRiskZones { get; set; } = [];
     public List<TeamRiskDto> HighRiskTeams { get; set; } = [];
     public List<WarningTypeStatDto> WarningTypeStats { get; set; } = [];
+    public List<ZoneHeatDto> ZoneHeatRanking { get; set; } = [];
+    public List<TrailHeatPeriodDto> TrailHeatPeriods { get; set; } = [];
+    public TrailStatsDto PersonnelTrailStats { get; set; } = new();
+    public TrailStatsDto ForkliftTrailStats { get; set; } = new();
     public RiskSummaryDto Summary { get; set; } = new();
+}
+
+public class ZoneHeatDto
+{
+    public Guid ZoneId { get; set; }
+    public string ZoneName { get; set; } = string.Empty;
+    public int PersonnelVisitCount { get; set; }
+    public int ForkliftVisitCount { get; set; }
+    public int TotalVisitCount { get; set; }
+    public double HeatScore { get; set; }
+}
+
+public class TrailHeatPeriodDto
+{
+    public int Hour { get; set; }
+    public int PersonnelCount { get; set; }
+    public int ForkliftCount { get; set; }
+    public int TotalCount { get; set; }
+}
+
+public class TrailStatsDto
+{
+    public int TotalRecords { get; set; }
+    public int ActiveEntities { get; set; }
+    public double AverageSpeed { get; set; }
+    public double MaxSpeed { get; set; }
 }
 
 public class TeamRiskDto

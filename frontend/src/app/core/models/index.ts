@@ -382,7 +382,34 @@ export interface HistoricalRiskAnalysis {
   highRiskZones: ZoneRiskDto[];
   highRiskTeams: TeamRiskDto[];
   warningTypeStats: WarningTypeStatDto[];
+  zoneHeatRanking: ZoneHeatDto[];
+  trailHeatPeriods: TrailHeatPeriodDto[];
+  personnelTrailStats: TrailStatsDto;
+  forkliftTrailStats: TrailStatsDto;
   summary: RiskSummaryDto;
+}
+
+export interface ZoneHeatDto {
+  zoneId: string;
+  zoneName: string;
+  personnelVisitCount: number;
+  forkliftVisitCount: number;
+  totalVisitCount: number;
+  heatScore: number;
+}
+
+export interface TrailHeatPeriodDto {
+  hour: number;
+  personnelCount: number;
+  forkliftCount: number;
+  totalCount: number;
+}
+
+export interface TrailStatsDto {
+  totalRecords: number;
+  activeEntities: number;
+  averageSpeed: number;
+  maxSpeed: number;
 }
 
 export interface TeamRiskDto {
