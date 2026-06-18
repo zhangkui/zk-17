@@ -17,15 +17,21 @@ public class PositionService : IPositionService
     private readonly IRepository<PositionRecord> _positionRepository;
     private readonly IRepository<Forklift> _forkliftRepository;
     private readonly IRepository<Personnel> _personnelRepository;
+    private readonly IBlindSpotService _blindSpotService;
+    private readonly IMonitoringNotificationService _notificationService;
 
     public PositionService(
         IRepository<PositionRecord> positionRepository,
         IRepository<Forklift> forkliftRepository,
-        IRepository<Personnel> personnelRepository)
+        IRepository<Personnel> personnelRepository,
+        IBlindSpotService blindSpotService,
+        IMonitoringNotificationService notificationService)
     {
         _positionRepository = positionRepository;
         _forkliftRepository = forkliftRepository;
         _personnelRepository = personnelRepository;
+        _blindSpotService = blindSpotService;
+        _notificationService = notificationService;
     }
 
     public async Task RecordForkliftPositionAsync(Guid forkliftId, double x, double y, double direction, double speed)
@@ -53,6 +59,15 @@ public class PositionService : IPositionService
             forklift.LastPositionUpdate = DateTime.UtcNow;
             await _forkliftRepository.UpdateAsync(forklift);
         }
+
+        await _notificationService.BroadcastForkliftPositionUpdateAsync(forkliftId, forklift, x, y, direction, speed);
+
+        if (forklift != null && forklift.Status == ForkliftStatus.Online)
+        {
+            await _blindSpotService.CalculateBlindSpotAsync(forkliftId);
+            var activeBlindSpots = await _blindSpotService.GetActiveBlindSpotsAsync();
+            await _notificationService.BroadcastBlindSpotUpdateAsync(activeBlindSpots);
+        }
     }
 
     public async Task RecordPersonnelPositionAsync(Guid personnelId, double x, double y)
@@ -76,6 +91,12 @@ public class PositionService : IPositionService
             personnel.LastPositionUpdate = DateTime.UtcNow;
             await _personnelRepository.UpdateAsync(personnel);
         }
+
+        await _notificationService.BroadcastPersonnelPositionUpdateAsync(personnelId, personnel, x, y);
+
+        await _blindSpotService.RecalculateAllBlindSpotsAsync();
+        var activeBlindSpots = await _blindSpotService.GetActiveBlindSpotsAsync();
+        await _notificationService.BroadcastBlindSpotUpdateAsync(activeBlindSpots);
     }
 
     public async Task<IEnumerable<Forklift>> GetForkliftPositionsAsync()

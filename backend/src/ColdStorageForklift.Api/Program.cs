@@ -45,6 +45,7 @@ builder.Services.AddScoped<IPersonnelService, PersonnelService>();
 builder.Services.AddScoped<IStatisticsService, StatisticsService>();
 builder.Services.AddScoped<ISimulationService, SimulationService>();
 builder.Services.AddScoped<IRiskPredictionService, RiskPredictionService>();
+builder.Services.AddScoped<IMonitoringNotificationService, ColdStorageForklift.Api.Services.MonitoringNotificationService>();
 builder.Services.AddHostedService<SimulationBackgroundService>();
 builder.Services.AddHostedService<RiskPredictionBackgroundService>();
 

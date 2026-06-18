@@ -283,6 +283,21 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       ctx.fillText(z.name, z.x + 6, z.y + 16);
     }
 
+    for (const z of this.zones) {
+      if (!z.obstacles) continue;
+      for (const obs of z.obstacles) {
+        const obsColor = this.obstacleColor(obs.type);
+        ctx.fillStyle = obsColor.fill;
+        ctx.strokeStyle = obsColor.stroke;
+        ctx.lineWidth = 1.5;
+        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.fillStyle = obsColor.stroke;
+        ctx.font = '10px sans-serif';
+        ctx.fillText(obs.name, obs.x + 3, obs.y + 12);
+      }
+    }
+
     for (const bs of this.blindSpots) {
       ctx.fillStyle = this.blindSpotColor(bs.riskLevel);
       ctx.beginPath();
@@ -382,5 +397,15 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       low: 'rgba(46,213,115,0.1)'
     };
     return map[level] || map['low'];
+  }
+
+  private obstacleColor(type: string): { fill: string; stroke: string } {
+    const map: Record<string, { fill: string; stroke: string }> = {
+      Shelf: { fill: 'rgba(139,90,43,0.4)', stroke: '#8b5a2b' },
+      Column: { fill: 'rgba(128,128,128,0.5)', stroke: '#808080' },
+      Machine: { fill: 'rgba(70,130,180,0.4)', stroke: '#4682b4' },
+      Wall: { fill: 'rgba(105,105,105,0.6)', stroke: '#696969' }
+    };
+    return map[type] || { fill: 'rgba(128,128,128,0.3)', stroke: '#808080' };
   }
 }
