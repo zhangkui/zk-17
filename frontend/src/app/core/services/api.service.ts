@@ -12,6 +12,8 @@ import {
   Statistics,
   EventRecord,
   EventReplayDto,
+  PredictionWarning,
+  HistoricalRiskAnalysis,
   ZoneType,
   ObstacleType,
   ForkliftStatus,
@@ -381,6 +383,74 @@ export class ApiService {
     return this.get<EventReplayDto>('/events/replay', { startTime, endTime });
   }
 
+  getActivePredictions(): Observable<PredictionWarning[]> {
+    return forkJoin({
+      predictions: this.get<any[]>('/predictions/active'),
+      forklifts: this.getForklifts(),
+      personnel: this.getPersonnel()
+    }).pipe(
+      map(({ predictions, forklifts, personnel }) => {
+        const forkliftMap = new Map(forklifts.map(f => [f.id, f]));
+        const personnelMap = new Map(personnel.map(p => [p.id, p]));
+        return predictions.map(dto => this.convertPredictionDto(dto, forkliftMap, personnelMap));
+      })
+    );
+  }
+
+  getPredictionById(id: string): Observable<PredictionWarning> {
+    return this.get<any>(`/predictions/${id}`).pipe(
+      map(dto => this.convertPredictionDto(dto, new Map(), new Map()))
+    );
+  }
+
+  getPredictionHistory(startTime?: string, endTime?: string): Observable<PredictionWarning[]> {
+    const params: Record<string, any> = {};
+    if (startTime) params['startTime'] = startTime;
+    if (endTime) params['endTime'] = endTime;
+    return forkJoin({
+      predictions: this.get<any[]>('/predictions/history', params),
+      forklifts: this.getForklifts(),
+      personnel: this.getPersonnel()
+    }).pipe(
+      map(({ predictions, forklifts, personnel }) => {
+        const forkliftMap = new Map(forklifts.map(f => [f.id, f]));
+        const personnelMap = new Map(personnel.map(p => [p.id, p]));
+        return predictions.map(dto => this.convertPredictionDto(dto, forkliftMap, personnelMap));
+      })
+    );
+  }
+
+  acknowledgePrediction(id: string, handledBy: string = 'operator', remark?: string): Observable<PredictionWarning> {
+    return this.post<any>(`/predictions/${id}/acknowledge`, { handledBy, remark }).pipe(
+      map(dto => this.convertPredictionDto(dto, new Map(), new Map()))
+    );
+  }
+
+  ignorePrediction(id: string, handledBy: string = 'operator', remark?: string): Observable<PredictionWarning> {
+    return this.post<any>(`/predictions/${id}/ignore`, { handledBy, remark }).pipe(
+      map(dto => this.convertPredictionDto(dto, new Map(), new Map()))
+    );
+  }
+
+  escalatePrediction(id: string, handledBy: string = 'operator', remark?: string): Observable<PredictionWarning> {
+    return this.post<any>(`/predictions/${id}/escalate`, { handledBy, remark }).pipe(
+      map(dto => this.convertPredictionDto(dto, new Map(), new Map()))
+    );
+  }
+
+  resolvePrediction(id: string, handledBy: string = 'operator', remark?: string): Observable<PredictionWarning> {
+    return this.post<any>(`/predictions/${id}/resolve`, { handledBy, remark }).pipe(
+      map(dto => this.convertPredictionDto(dto, new Map(), new Map()))
+    );
+  }
+
+  getHistoricalRiskAnalysis(startTime?: string, endTime?: string): Observable<HistoricalRiskAnalysis> {
+    const params: Record<string, any> = {};
+    if (startTime) params['startTime'] = startTime;
+    if (endTime) params['endTime'] = endTime;
+    return this.get<HistoricalRiskAnalysis>('/predictions/historical-analysis', params);
+  }
+
   private convertForkliftDto(dto: any): Forklift {
     return {
       id: dto.id,
@@ -564,6 +634,49 @@ export class ApiService {
       timestamp: warning.timestamp,
       duration: 0,
       teamId: dto.teamId || ''
+    };
+  }
+
+  private convertPredictionDto(
+    dto: any,
+    forkliftMap: Map<string, Forklift>,
+    personnelMap: Map<string, Personnel>
+  ): PredictionWarning {
+    const forklift = forkliftMap.get(dto.forkliftId);
+    const personnel = dto.personnelId ? personnelMap.get(dto.personnelId) : undefined;
+
+    const warningType = this.parseEnum<WarningType>(dto.warningType ?? dto.type, 'WarningType', 'PersonForkliftApproach');
+    const riskLevel = this.parseEnum<RiskLevel>(dto.predictedRiskLevel, 'RiskLevel', 'Low');
+    const status = this.parseEnum<any>(dto.status, 'PredictionStatus', 'Active') as any;
+
+    return {
+      id: dto.id,
+      forkliftId: dto.forkliftId,
+      forkliftName: forklift?.name || dto.forkliftName || `叉车-${dto.forkliftId?.substring(0, 4)}`,
+      personnelId: dto.personnelId,
+      personnelName: personnel?.name || dto.personnelName,
+      zoneId: dto.zoneId,
+      zoneName: dto.zoneName,
+      type: warningType,
+      predictedRiskLevel: riskLevel,
+      predictedDistance: dto.predictedDistance,
+      forkliftPositionX: dto.forkliftPositionX ?? 0,
+      forkliftPositionY: dto.forkliftPositionY ?? 0,
+      forkliftSpeed: dto.forkliftSpeed ?? 0,
+      forkliftDirection: dto.forkliftDirection ?? 0,
+      personnelPositionX: dto.personnelPositionX,
+      personnelPositionY: dto.personnelPositionY,
+      personnelSpeed: dto.personnelSpeed,
+      personnelDirection: dto.personnelDirection,
+      predictedCollisionTime: dto.predictedCollisionTime ?? 0,
+      message: dto.message || '预测预警',
+      status: status,
+      handledBy: dto.handledBy,
+      handledAt: dto.handledAt ? new Date(dto.handledAt) : undefined,
+      handleRemark: dto.handleRemark,
+      becameActualWarning: dto.becameActualWarning,
+      createdAt: new Date(dto.createdAt || Date.now()),
+      expiresAt: new Date(dto.expiresAt || Date.now())
     };
   }
 

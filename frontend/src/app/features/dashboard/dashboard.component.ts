@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Subscription } from 'rxjs';
 import { SignalRService } from '../../core/services/signalr.service';
 import { ApiService } from '../../core/services/api.service';
-import { Forklift, Personnel, BlindSpot, Warning, Zone, riskLevelText } from '../../core/models';
+import { Forklift, Personnel, BlindSpot, Warning, Zone, PredictionWarning, riskLevelText } from '../../core/models';
 
 @Component({
   selector: 'app-dashboard',
@@ -15,7 +15,7 @@ import { Forklift, Personnel, BlindSpot, Warning, Zone, riskLevelText } from '..
       <p>冷库叉车作业实时态势感知</p>
     </div>
 
-    <div class="stats-grid">
+    <div class="stats-grid" style="grid-template-columns:repeat(5,1fr);">
       <div class="stat-card">
         <div class="stat-label">在线叉车</div>
         <div class="stat-value orange">{{ forklifts.length }}</div>
@@ -27,6 +27,10 @@ import { Forklift, Personnel, BlindSpot, Warning, Zone, riskLevelText } from '..
       <div class="stat-card">
         <div class="stat-label">活跃预警</div>
         <div class="stat-value red">{{ activeWarnings.length }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">预测预警</div>
+        <div class="stat-value purple">{{ activePredictions.length }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">盲区数量</div>
@@ -48,7 +52,10 @@ import { Forklift, Personnel, BlindSpot, Warning, Zone, riskLevelText } from '..
       <div class="card">
         <div class="card-header">
           <h3>实时预警</h3>
-          <span style="font-size:12px;color:#ff4757;">{{ activeWarnings.length }} 条活跃</span>
+          <div style="display:flex;gap:12px;font-size:12px;">
+            <span style="color:#ff4757;">{{ activeWarnings.length }} 条活跃</span>
+            <span style="color:#9b59b6;">{{ activePredictions.length }} 条预测</span>
+          </div>
         </div>
         <div class="warning-list-scroll">
           @for (w of activeWarnings; track w.id) {
@@ -60,8 +67,27 @@ import { Forklift, Personnel, BlindSpot, Warning, Zone, riskLevelText } from '..
               </div>
               <span class="risk-badge" [class]="w.level">{{ riskLevelText(w.level) }}</span>
             </div>
-          } @empty {
-            <div style="padding:24px;text-align:center;color:#5a7a9a;font-size:13px;">暂无活跃预警</div>
+          }
+
+          @for (p of activePredictions; track p.id) {
+            <div class="warning-item prediction-item">
+              <span class="warning-dot prediction-dot" [class]="p.predictedRiskLevel"></span>
+              <div style="flex:1;">
+                <div style="color:#e8f0fe;display:flex;align-items:center;gap:6px;">
+                  {{ p.forkliftName }}
+                  <span class="prediction-badge">预测</span>
+                </div>
+                <div style="color:#5a7a9a;font-size:12px;">{{ p.message }}</div>
+                <div style="color:#9b59b6;font-size:11px;">
+                  预计 {{ p.predictedCollisionTime | number:'1.0' }} 秒后接近
+                </div>
+              </div>
+              <span class="risk-badge prediction-badge" [class]="p.predictedRiskLevel">{{ riskLevelText(p.predictedRiskLevel) }}</span>
+            </div>
+          }
+
+          @if (activeWarnings.length === 0 && activePredictions.length === 0) {
+            <div style="padding:24px;text-align:center;color:#5a7a9a;font-size:13px;">暂无预警信息</div>
           }
         </div>
       </div>
@@ -69,6 +95,24 @@ import { Forklift, Personnel, BlindSpot, Warning, Zone, riskLevelText } from '..
   `,
   styles: [`
     :host { display: block; }
+    .stat-value.purple { color: #9b59b6; }
+    .prediction-item {
+      border-left: 3px solid #9b59b6;
+      background: rgba(155, 89, 182, 0.05);
+    }
+    .prediction-dot {
+      border-style: dashed;
+      border-width: 2px;
+      background: transparent !important;
+    }
+    .prediction-badge {
+      border: 1px dashed #9b59b6;
+      color: #9b59b6;
+      background: transparent;
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 3px;
+    }
   `]
 })
 export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
@@ -78,6 +122,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   personnel: Personnel[] = [];
   blindSpots: BlindSpot[] = [];
   activeWarnings: Warning[] = [];
+  activePredictions: PredictionWarning[] = [];
   zones: Zone[] = [];
 
   private ctx!: CanvasRenderingContext2D;
@@ -113,6 +158,12 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         case 'WarningResolved':
           this.activeWarnings = this.activeWarnings.filter(w => w.id !== msg.payload.id);
           break;
+        case 'PredictionWarningGenerated':
+          this.handlePredictionGenerated(msg.payload);
+          break;
+        case 'PredictionWarningUpdated':
+          this.handlePredictionUpdated(msg.payload);
+          break;
       }
     });
   }
@@ -134,6 +185,57 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.api.getBlindSpots().subscribe(d => { this.blindSpots = d; });
     this.api.getWarnings().subscribe(d => { this.activeWarnings = d.filter(w => w.status === 'active'); });
     this.api.getZones().subscribe(d => { this.zones = d; });
+    this.api.getActivePredictions().subscribe(d => { this.activePredictions = d; });
+  }
+
+  private handlePredictionGenerated(payload: any): void {
+    const idx = this.activePredictions.findIndex(p => p.id === payload.id);
+    const prediction = this.convertPredictionPayload(payload);
+    if (idx >= 0) {
+      this.activePredictions[idx] = prediction;
+    } else {
+      this.activePredictions.unshift(prediction);
+      if (this.activePredictions.length > 30) this.activePredictions.pop();
+    }
+  }
+
+  private handlePredictionUpdated(payload: any): void {
+    const idx = this.activePredictions.findIndex(p => p.id === payload.id);
+    if (idx >= 0) {
+      if (payload.status && payload.status !== 'Active') {
+        this.activePredictions = this.activePredictions.filter(p => p.id !== payload.id);
+      } else {
+        this.activePredictions[idx] = this.convertPredictionPayload(payload);
+      }
+    }
+  }
+
+  private convertPredictionPayload(payload: any): PredictionWarning {
+    return {
+      id: payload.id,
+      forkliftId: payload.forkliftId,
+      forkliftName: payload.forkliftName || `叉车-${payload.forkliftId?.substring(0, 4)}`,
+      personnelId: payload.personnelId,
+      personnelName: payload.personnelName,
+      zoneId: payload.zoneId,
+      zoneName: payload.zoneName,
+      type: payload.warningType || 'PersonForkliftApproach',
+      predictedRiskLevel: payload.predictedRiskLevel || 'Low',
+      predictedDistance: payload.predictedDistance || 0,
+      forkliftPositionX: payload.forkliftPositionX ?? 0,
+      forkliftPositionY: payload.forkliftPositionY ?? 0,
+      forkliftSpeed: payload.forkliftSpeed ?? 0,
+      forkliftDirection: payload.forkliftDirection ?? 0,
+      personnelPositionX: payload.personnelPositionX,
+      personnelPositionY: payload.personnelPositionY,
+      personnelSpeed: payload.personnelSpeed,
+      personnelDirection: payload.personnelDirection,
+      predictedCollisionTime: payload.predictedCollisionTime ?? 0,
+      message: payload.message || '预测预警',
+      status: payload.status || 'Active',
+      createdAt: new Date(payload.createdAt || Date.now()),
+      expiresAt: new Date(payload.expiresAt || Date.now())
+    };
   }
 
   private updateForklift(data: Forklift): void {
@@ -236,6 +338,39 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       ctx.arc(w.position.x, w.position.y, 20 + Math.sin(Date.now() / 200) * 5, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
+    }
+
+    for (const p of this.activePredictions) {
+      const levelColors: Record<string, string> = {
+        Critical: '#9b59b6',
+        High: '#9b59b6',
+        Medium: '#9b59b6',
+        Low: '#9b59b6'
+      };
+      const color = levelColors[p.predictedRiskLevel] || '#9b59b6';
+      const pulse = Math.sin(Date.now() / 400) * 0.5 + 0.5;
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.globalAlpha = 0.3 + pulse * 0.4;
+      ctx.beginPath();
+      ctx.arc(p.forkliftPositionX, p.forkliftPositionY, 25 + pulse * 8, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(p.forkliftPositionX, p.forkliftPositionY, 35 + pulse * 12, 0, Math.PI * 2);
+      ctx.globalAlpha = 0.15 + pulse * 0.2;
+      ctx.stroke();
+
+      ctx.globalAlpha = 1;
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = color;
+      ctx.globalAlpha = 0.9;
+      ctx.font = 'bold 10px sans-serif';
+      ctx.fillText('预测预警', p.forkliftPositionX + 14, p.forkliftPositionY - 14);
+      ctx.globalAlpha = 1;
     }
   }
 

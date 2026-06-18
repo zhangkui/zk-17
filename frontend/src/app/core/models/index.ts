@@ -8,6 +8,7 @@ export type RiskLevel = 'Low' | 'Medium' | 'High' | 'Critical';
 export type WarningType = 'PersonForkliftApproach' | 'VehicleCollision' | 'BlindSpotIntrusion';
 export type EventType = 'Warning' | 'Collision' | 'BlindSpotIntrusion' | 'ZoneViolation';
 export type PositionEntityType = 'Forklift' | 'Personnel';
+export type PredictionStatus = 'Active' | 'Acknowledged' | 'Ignored' | 'Escalated' | 'Resolved' | 'Expired';
 
 export function parseEnum<T extends string>(value: any, defaultValue: T, validValues?: T[]): T {
   if (value === undefined || value === null) return defaultValue;
@@ -344,4 +345,79 @@ export function riskLevel(value: number): RiskLevel {
   if (value >= 60) return 'High';
   if (value >= 40) return 'Medium';
   return 'Low';
+}
+
+export interface PredictionWarning {
+  id: string;
+  forkliftId: string;
+  forkliftName: string;
+  personnelId?: string;
+  personnelName?: string;
+  zoneId?: string;
+  zoneName?: string;
+  type: WarningType;
+  predictedRiskLevel: RiskLevel;
+  predictedDistance: number;
+  forkliftPositionX: number;
+  forkliftPositionY: number;
+  forkliftSpeed: number;
+  forkliftDirection: number;
+  personnelPositionX?: number;
+  personnelPositionY?: number;
+  personnelSpeed?: number;
+  personnelDirection?: number;
+  predictedCollisionTime: number;
+  message: string;
+  status: PredictionStatus;
+  handledBy?: string;
+  handledAt?: Date;
+  handleRemark?: string;
+  becameActualWarning?: boolean;
+  createdAt: Date;
+  expiresAt: Date;
+}
+
+export interface HistoricalRiskAnalysis {
+  highRiskPeriods: HighRiskPeriodDto[];
+  highRiskZones: ZoneRiskDto[];
+  highRiskTeams: TeamRiskDto[];
+  warningTypeStats: WarningTypeStatDto[];
+  summary: RiskSummaryDto;
+}
+
+export interface TeamRiskDto {
+  teamId: string;
+  teamName: string;
+  warningCount: number;
+  criticalCount: number;
+  riskScore: number;
+  riskLevel: RiskLevel;
+}
+
+export interface WarningTypeStatDto {
+  type: WarningType;
+  count: number;
+  percentage: number;
+}
+
+export interface RiskSummaryDto {
+  totalWarnings: number;
+  criticalWarnings: number;
+  highWarnings: number;
+  mediumWarnings: number;
+  lowWarnings: number;
+  averageResponseTime: number;
+  acknowledgmentRate: number;
+}
+
+export function predictionStatusText(status: PredictionStatus): string {
+  const map: Record<PredictionStatus, string> = {
+    Active: '待处理',
+    Acknowledged: '已确认',
+    Ignored: '已忽略',
+    Escalated: '已升级',
+    Resolved: '已解决',
+    Expired: '已过期'
+  };
+  return map[status] || status;
 }

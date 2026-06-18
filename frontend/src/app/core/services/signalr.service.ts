@@ -44,6 +44,14 @@ export class SignalRService implements OnDestroy {
       this.messageSubject.next({ type: 'WarningResolved', payload });
     });
 
+    this.hubConnection.on('PredictionWarningGenerated', (payload: any) => {
+      this.messageSubject.next({ type: 'PredictionWarningGenerated', payload });
+    });
+
+    this.hubConnection.on('PredictionWarningUpdated', (payload: any) => {
+      this.messageSubject.next({ type: 'PredictionWarningUpdated', payload });
+    });
+
     this.hubConnection.onreconnected(() => {
       this.connected = true;
     });

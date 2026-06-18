@@ -17,6 +17,7 @@ public class AppDbContext : DbContext
     public DbSet<Team> Teams => Set<Team>();
     public DbSet<TeamMember> TeamMembers => Set<TeamMember>();
     public DbSet<EventLog> EventLogs => Set<EventLog>();
+    public DbSet<PredictionWarning> PredictionWarnings => Set<PredictionWarning>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -164,6 +165,42 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Description).HasMaxLength(1000).IsRequired();
             entity.HasIndex(e => e.OccurredAt);
             entity.HasIndex(e => e.EventType);
+        });
+
+        modelBuilder.Entity<PredictionWarning>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.WarningType).HasConversion<int>();
+            entity.Property(e => e.PredictedRiskLevel).HasConversion<int>();
+            entity.Property(e => e.Status).HasConversion<int>();
+            entity.Property(e => e.PredictedDistance).HasPrecision(18, 2);
+            entity.Property(e => e.ForkliftPositionX).HasPrecision(18, 2);
+            entity.Property(e => e.ForkliftPositionY).HasPrecision(18, 2);
+            entity.Property(e => e.ForkliftSpeed).HasPrecision(18, 2);
+            entity.Property(e => e.ForkliftDirection).HasPrecision(18, 2);
+            entity.Property(e => e.PersonnelPositionX).HasPrecision(18, 2);
+            entity.Property(e => e.PersonnelPositionY).HasPrecision(18, 2);
+            entity.Property(e => e.PersonnelSpeed).HasPrecision(18, 2);
+            entity.Property(e => e.PersonnelDirection).HasPrecision(18, 2);
+            entity.Property(e => e.PredictedCollisionTime).HasPrecision(18, 2);
+            entity.Property(e => e.Message).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.HandleRemark).HasMaxLength(500);
+            entity.HasOne(e => e.Forklift)
+                .WithMany()
+                .HasForeignKey(e => e.ForkliftId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Personnel)
+                .WithMany()
+                .HasForeignKey(e => e.PersonnelId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(e => e.Zone)
+                .WithMany()
+                .HasForeignKey(e => e.ZoneId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.CreatedAt);
+            entity.HasIndex(e => e.ExpiresAt);
+            entity.HasIndex(e => e.PredictedRiskLevel);
         });
 
         base.OnModelCreating(modelBuilder);

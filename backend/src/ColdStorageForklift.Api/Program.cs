@@ -41,7 +41,9 @@ builder.Services.AddScoped<IForkliftService, ForkliftService>();
 builder.Services.AddScoped<IPersonnelService, PersonnelService>();
 builder.Services.AddScoped<IStatisticsService, StatisticsService>();
 builder.Services.AddScoped<ISimulationService, SimulationService>();
+builder.Services.AddScoped<IRiskPredictionService, RiskPredictionService>();
 builder.Services.AddHostedService<SimulationBackgroundService>();
+builder.Services.AddHostedService<RiskPredictionBackgroundService>();
 
 builder.Services.AddSingleton<IRabbitMqService>(sp =>
 {

@@ -7,9 +7,14 @@ import {
   WarningTrendDto,
   ZoneRiskDto,
   TeamSafetyDto,
+  HistoricalRiskAnalysis,
+  TeamRiskDto,
+  WarningTypeStatDto,
+  RiskSummaryDto,
   riskLevelText,
   riskLevelValue,
-  riskLevel
+  riskLevel,
+  warningTypeText
 } from '../../core/models';
 
 @Component({
@@ -21,6 +26,35 @@ import {
       <h2>统计分析</h2>
       <p>碰撞风险数据分析与安全态势评估</p>
     </div>
+
+    @if (historicalAnalysis) {
+      <div class="stats-grid" style="grid-template-columns:repeat(6,1fr);margin-bottom:16px;">
+        <div class="stat-card">
+          <div class="stat-label">预警总数</div>
+          <div class="stat-value cyan">{{ historicalAnalysis.summary.totalWarnings }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">极高风险</div>
+          <div class="stat-value red">{{ historicalAnalysis.summary.criticalWarnings }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">高风险</div>
+          <div class="stat-value orange">{{ historicalAnalysis.summary.highWarnings }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">中风险</div>
+          <div class="stat-value" style="color:#ffd32a;">{{ historicalAnalysis.summary.mediumWarnings }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">确认率</div>
+          <div class="stat-value green">{{ (historicalAnalysis.summary.acknowledgmentRate * 100) | number:'1.0' }}%</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">平均响应</div>
+          <div class="stat-value" style="color:#00d4ff;">{{ historicalAnalysis.summary.averageResponseTime | number:'1.0' }}s</div>
+        </div>
+      </div>
+    }
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
       <div class="card">
@@ -42,7 +76,7 @@ import {
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
       <div class="card">
         <div class="card-header">
           <h3>区域风险排名</h3>
@@ -94,7 +128,59 @@ import {
           <canvas #radarCanvas width="400" height="300"></canvas>
         </div>
       </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>预警类型分布</h3>
+        </div>
+        <div class="card-body">
+          <canvas #warningTypeCanvas width="400" height="300"></canvas>
+        </div>
+      </div>
     </div>
+
+    @if (historicalAnalysis && historicalAnalysis.highRiskTeams.length > 0) {
+      <div class="card" style="margin-top:16px;">
+        <div class="card-header">
+          <h3>高风险班组排名</h3>
+        </div>
+        <div class="card-body" style="padding:0;">
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>排名</th>
+                  <th>班组</th>
+                  <th>预警总数</th>
+                  <th>极高风险</th>
+                  <th>风险评分</th>
+                  <th>风险等级</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (t of historicalAnalysis.highRiskTeams; track t.teamId; let i = $index) {
+                  <tr>
+                    <td>{{ i + 1 }}</td>
+                    <td>{{ t.teamName }}</td>
+                    <td>{{ t.warningCount }}</td>
+                    <td><span style="color:#ff4757;">{{ t.criticalCount }}</span></td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:8px;">
+                        <div style="flex:1;height:6px;background:#1b3a5c;border-radius:3px;">
+                          <div [style.width.%]="minScore(t.riskScore)" style="height:100%;border-radius:3px;" [style.background]="riskColor(t.riskScore)"></div>
+                        </div>
+                        <span style="min-width:30px;text-align:right;">{{ t.riskScore | number:'1.0' }}</span>
+                      </div>
+                    </td>
+                    <td><span class="risk-badge" [class]="t.riskLevel.toLowerCase()">{{ riskLevelText(t.riskLevel) }}</span></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    }
   `,
   styles: [`:host { display: block; }`]
 })
@@ -102,6 +188,7 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
   @ViewChild('hourlyCanvas', { static: true }) hourlyCanvasRef!: ElementRef<HTMLCanvasElement>;
   @ViewChild('trendCanvas', { static: true }) trendCanvasRef!: ElementRef<HTMLCanvasElement>;
   @ViewChild('radarCanvas', { static: true }) radarCanvasRef!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('warningTypeCanvas', { static: true }) warningTypeCanvasRef!: ElementRef<HTMLCanvasElement>;
 
   stats: Statistics = {
     hourlyWarnings: [],
@@ -109,6 +196,8 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
     zoneRiskRanking: [],
     teamSafetyScores: []
   };
+
+  historicalAnalysis: HistoricalRiskAnalysis | null = null;
 
   riskColor = (score: number) => {
     if (score >= 80) return '#ff4757';
@@ -130,6 +219,11 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
   };
 
   riskLevelValue = riskLevelValue;
+  warningTypeText = warningTypeText;
+
+  minScore(score: number): number {
+    return Math.min(score, 100);
+  }
 
   constructor(private api: ApiService) {}
 
@@ -137,6 +231,13 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
     this.api.getStatistics().subscribe({
       next: d => {
         this.stats = d;
+        setTimeout(() => this.drawAll(), 50);
+      }
+    });
+
+    this.api.getHistoricalRiskAnalysis().subscribe({
+      next: d => {
+        this.historicalAnalysis = d;
         setTimeout(() => this.drawAll(), 50);
       }
     });
@@ -152,6 +253,7 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
     this.drawHourlyChart();
     this.drawTrendChart();
     this.drawRadarChart();
+    this.drawWarningTypeChart();
   }
 
   private drawHourlyChart(): void {
@@ -380,5 +482,75 @@ export class StatisticsComponent implements OnInit, AfterViewInit {
       ctx.textAlign = 'left';
       ctx.fillText(data[t].teamName, 38, 31 + t * 20);
     }
+  }
+
+  private drawWarningTypeChart(): void {
+    const canvas = this.warningTypeCanvasRef?.nativeElement;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d')!;
+    const types = this.historicalAnalysis?.warningTypeStats || [];
+    const w = canvas.width, h = canvas.height;
+    const cx = w / 2 - 40, cy = h / 2 + 10;
+    const r = Math.min(w, h) / 2 - 60;
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#081220';
+    ctx.fillRect(0, 0, w, h);
+
+    if (types.length === 0) {
+      ctx.fillStyle = '#5a7a9a';
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('暂无预警类型数据', cx, cy);
+      return;
+    }
+
+    const total = types.reduce((sum, t) => sum + t.count, 0);
+    const typeColors: Record<string, string> = {
+      NearMiss: '#ff4757',
+      BlindSpot: '#ffa502',
+      Speeding: '#ffd32a',
+      RestrictedZone: '#2ed573',
+      Pedestrian: '#00d4ff'
+    };
+
+    let startAngle = -Math.PI / 2;
+    for (let i = 0; i < types.length; i++) {
+      const type = types[i];
+      const angle = (type.count / total) * Math.PI * 2;
+      const color = typeColors[type.type] || '#9b59b6';
+
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, r, startAngle, startAngle + angle);
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+
+      const midAngle = startAngle + angle / 2;
+      const labelR = r + 20;
+      const lx = cx + Math.cos(midAngle) * labelR;
+      const ly = cy + Math.sin(midAngle) * labelR;
+
+      ctx.fillStyle = '#c8d6e5';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = Math.cos(midAngle) > 0 ? 'left' : 'right';
+      ctx.fillText(`${warningTypeText(type.type)} ${type.count}`, lx, ly + 4);
+
+      startAngle += angle;
+    }
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.55, 0, Math.PI * 2);
+    ctx.fillStyle = '#081220';
+    ctx.fill();
+
+    ctx.fillStyle = '#c8d6e5';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(total.toString(), cx, cy - 2);
+    ctx.fillStyle = '#5a7a9a';
+    ctx.font = '10px sans-serif';
+    ctx.fillText('总预警', cx, cy + 14);
   }
 }
