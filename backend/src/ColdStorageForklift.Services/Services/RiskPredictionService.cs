@@ -257,11 +257,11 @@ public class RiskPredictionService : IRiskPredictionService
 
     private static double GetPersonSpeed(Personnel person, PositionRecord? positionRecord)
     {
-        if (positionRecord != null && positionRecord.Speed > 0)
+        if (positionRecord != null)
         {
             return positionRecord.Speed;
         }
-        return person.Status == PersonnelStatus.Online ? DefaultPersonSpeed : 0;
+        return 0;
     }
 
     private static double GetPersonDirection(Personnel person, PositionRecord? positionRecord)
@@ -549,48 +549,79 @@ public class RiskPredictionService : IRiskPredictionService
         var teams = await _teamRepository.GetAllAsync();
         var zones = await _zoneRepository.GetAllAsync();
 
-        var highRiskPeriods = warnings
+        var warningPeriodDict = warnings
             .GroupBy(w => w.CreatedAt.Hour)
-            .Select(g => new HighRiskPeriod
-            {
-                Hour = g.Key,
-                EventCount = g.Count(),
-                AverageRiskLevel = g.Any(w => w.RiskLevel == RiskLevel.Critical) ? RiskLevel.Critical :
-                                   g.Any(w => w.RiskLevel == RiskLevel.High) ? RiskLevel.High :
-                                   g.Any(w => w.RiskLevel == RiskLevel.Medium) ? RiskLevel.Medium : RiskLevel.Low
-            })
-            .OrderByDescending(p => p.EventCount)
-            .Take(10)
-            .ToList();
+            .ToDictionary(g => g.Key, g => g.ToList());
 
-        var highRiskZones = warnings
+        var highRiskPeriods = new List<HighRiskPeriod>();
+        for (int hour = 0; hour < 24; hour++)
+        {
+            if (warningPeriodDict.TryGetValue(hour, out var hourWarnings))
+            {
+                highRiskPeriods.Add(new HighRiskPeriod
+                {
+                    Hour = hour,
+                    EventCount = hourWarnings.Count,
+                    AverageRiskLevel = hourWarnings.Any(w => w.RiskLevel == RiskLevel.Critical) ? RiskLevel.Critical :
+                                       hourWarnings.Any(w => w.RiskLevel == RiskLevel.High) ? RiskLevel.High :
+                                       hourWarnings.Any(w => w.RiskLevel == RiskLevel.Medium) ? RiskLevel.Medium : RiskLevel.Low
+                });
+            }
+            else
+            {
+                highRiskPeriods.Add(new HighRiskPeriod
+                {
+                    Hour = hour,
+                    EventCount = 0,
+                    AverageRiskLevel = RiskLevel.Low
+                });
+            }
+        }
+
+        highRiskPeriods = highRiskPeriods.OrderBy(p => p.Hour).ToList();
+
+        var zoneWarningDict = warnings
             .Where(w => w.ZoneId.HasValue)
             .GroupBy(w => w.ZoneId!.Value)
-            .Select(g =>
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var highRiskZones = new List<ZoneRisk>();
+        foreach (var zone in zones)
+        {
+            if (zoneWarningDict.TryGetValue(zone.Id, out var zoneWarnings))
             {
-                var zone = zones.FirstOrDefault(z => z.Id == g.Key);
-                return new ZoneRisk
+                highRiskZones.Add(new ZoneRisk
                 {
-                    ZoneId = g.Key,
-                    ZoneName = zone?.Name ?? "未知区域",
-                    WarningCount = g.Count(),
-                    AverageDistance = g.Average(w => w.Distance),
-                    RiskLevel = g.Any(w => w.RiskLevel == RiskLevel.Critical) ? RiskLevel.Critical :
-                                g.Any(w => w.RiskLevel == RiskLevel.High) ? RiskLevel.High :
-                                g.Any(w => w.RiskLevel == RiskLevel.Medium) ? RiskLevel.Medium : RiskLevel.Low
-                };
-            })
-            .OrderByDescending(r => r.WarningCount)
-            .ToList();
+                    ZoneId = zone.Id,
+                    ZoneName = zone.Name,
+                    WarningCount = zoneWarnings.Count,
+                    AverageDistance = zoneWarnings.Average(w => w.Distance),
+                    RiskLevel = zoneWarnings.Any(w => w.RiskLevel == RiskLevel.Critical) ? RiskLevel.Critical :
+                                zoneWarnings.Any(w => w.RiskLevel == RiskLevel.High) ? RiskLevel.High :
+                                zoneWarnings.Any(w => w.RiskLevel == RiskLevel.Medium) ? RiskLevel.Medium : RiskLevel.Low
+                });
+            }
+            else
+            {
+                highRiskZones.Add(new ZoneRisk
+                {
+                    ZoneId = zone.Id,
+                    ZoneName = zone.Name,
+                    WarningCount = 0,
+                    AverageDistance = 0,
+                    RiskLevel = RiskLevel.Low
+                });
+            }
+        }
+
+        highRiskZones = highRiskZones.OrderByDescending(r => r.WarningCount).ToList();
 
         var highRiskTeams = new List<TeamRisk>();
         foreach (var team in teams)
         {
             var teamWarnings = warnings.Where(w =>
-                w.Forklift.TeamId == team.Id ||
+                (w.Forklift != null && w.Forklift.TeamId == team.Id) ||
                 (w.Personnel != null && w.Personnel.TeamId == team.Id)).ToList();
-
-            if (teamWarnings.Count == 0) continue;
 
             var criticalCount = teamWarnings.Count(w => w.RiskLevel == RiskLevel.Critical);
             var riskScore = Math.Min(100, criticalCount * 15 + (teamWarnings.Count - criticalCount) * 5);
@@ -608,16 +639,21 @@ public class RiskPredictionService : IRiskPredictionService
 
         highRiskTeams = highRiskTeams.OrderByDescending(t => t.RiskScore).ToList();
 
-        var warningTypeStats = warnings
-            .GroupBy(w => w.WarningType)
-            .Select(g => new WarningTypeStat
+        var allWarningTypes = Enum.GetValues(typeof(WarningType)).Cast<WarningType>().ToList();
+        var warningTypeDict = warnings.GroupBy(w => w.WarningType).ToDictionary(g => g.Key, g => g.Count());
+        var warningTypeStats = new List<WarningTypeStat>();
+        foreach (var type in allWarningTypes)
+        {
+            var count = warningTypeDict.TryGetValue(type, out var c) ? c : 0;
+            warningTypeStats.Add(new WarningTypeStat
             {
-                Type = g.Key,
-                Count = g.Count(),
-                Percentage = warnings.Count > 0 ? (double)g.Count() / warnings.Count : 0
-            })
-            .OrderByDescending(s => s.Count)
-            .ToList();
+                Type = type,
+                Count = count,
+                Percentage = warnings.Count > 0 ? (double)count / warnings.Count : 0
+            });
+        }
+
+        warningTypeStats = warningTypeStats.OrderByDescending(s => s.Count).ToList();
 
         var summary = new RiskSummary
         {
@@ -651,18 +687,36 @@ public class RiskPredictionService : IRiskPredictionService
             .Where(p => p.EntityType == PositionEntityType.Forklift)
             .ToList();
 
-        var trailHeatPeriods = positionRecords
+        var trailPeriodDict = positionRecords
             .GroupBy(p => p.RecordedAt.Hour)
-            .Select(g => new TrailHeatPeriod
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var trailHeatPeriods = new List<TrailHeatPeriod>();
+        for (int hour = 0; hour < 24; hour++)
+        {
+            if (trailPeriodDict.TryGetValue(hour, out var hourRecords))
             {
-                Hour = g.Key,
-                PersonnelCount = g.Count(p => p.EntityType == PositionEntityType.Personnel),
-                ForkliftCount = g.Count(p => p.EntityType == PositionEntityType.Forklift),
-                TotalCount = g.Count()
-            })
-            .OrderByDescending(p => p.TotalCount)
-            .Take(10)
-            .ToList();
+                trailHeatPeriods.Add(new TrailHeatPeriod
+                {
+                    Hour = hour,
+                    PersonnelCount = hourRecords.Count(p => p.EntityType == PositionEntityType.Personnel),
+                    ForkliftCount = hourRecords.Count(p => p.EntityType == PositionEntityType.Forklift),
+                    TotalCount = hourRecords.Count
+                });
+            }
+            else
+            {
+                trailHeatPeriods.Add(new TrailHeatPeriod
+                {
+                    Hour = hour,
+                    PersonnelCount = 0,
+                    ForkliftCount = 0,
+                    TotalCount = 0
+                });
+            }
+        }
+
+        trailHeatPeriods = trailHeatPeriods.OrderBy(p => p.Hour).ToList();
 
         var zoneHeatDict = new Dictionary<Guid, ZoneHeat>();
         foreach (var zone in zones)
@@ -698,7 +752,6 @@ public class RiskPredictionService : IRiskPredictionService
         }
 
         var zoneHeatRanking = zoneHeatDict.Values
-            .Where(z => z.TotalVisitCount > 0)
             .OrderByDescending(z => z.HeatScore)
             .ToList();
 

@@ -10,10 +10,10 @@ public interface ITeamService
     Task DeleteTeamAsync(Guid id);
     Task<Team?> GetTeamByIdAsync(Guid id);
     Task<IEnumerable<Team>> GetAllTeamsAsync();
-    Task<TeamMember> AddMemberAsync(Guid teamId, TeamMember member);
-    Task<TeamMember?> UpdateMemberAsync(Guid teamId, Guid memberId, TeamMember member);
+    Task<Personnel> AddMemberAsync(Guid teamId, Personnel member);
+    Task<Personnel?> UpdateMemberAsync(Guid teamId, Guid memberId, Personnel member);
     Task<bool> DeleteMemberAsync(Guid teamId, Guid memberId);
-    Task<IEnumerable<TeamMember>> GetMembersAsync(Guid teamId);
+    Task<IEnumerable<Personnel>> GetMembersAsync(Guid teamId);
     Task<IEnumerable<CollisionWarning>> GetTeamEventsAsync(Guid teamId, DateTime? startTime = null, DateTime? endTime = null);
     Task<(int TotalMembers, int TotalEvents, int HighRiskEvents, int MediumRiskEvents, int LowRiskEvents, double SafetyScore)> 
         GetTeamStatisticsAsync(Guid teamId, DateTime? startTime = null, DateTime? endTime = null);
@@ -22,20 +22,17 @@ public interface ITeamService
 public class TeamService : ITeamService
 {
     private readonly IRepository<Team> _teamRepository;
-    private readonly IRepository<TeamMember> _memberRepository;
     private readonly IRepository<CollisionWarning> _warningRepository;
     private readonly IRepository<Forklift> _forkliftRepository;
     private readonly IRepository<Personnel> _personnelRepository;
 
     public TeamService(
         IRepository<Team> teamRepository,
-        IRepository<TeamMember> memberRepository,
         IRepository<CollisionWarning> warningRepository,
         IRepository<Forklift> forkliftRepository,
         IRepository<Personnel> personnelRepository)
     {
         _teamRepository = teamRepository;
-        _memberRepository = memberRepository;
         _warningRepository = warningRepository;
         _forkliftRepository = forkliftRepository;
         _personnelRepository = personnelRepository;
@@ -59,12 +56,6 @@ public class TeamService : ITeamService
         var team = await _teamRepository.GetByIdAsync(id);
         if (team == null) return;
 
-        var members = _memberRepository.Query().Where(m => m.TeamId == id).ToList();
-        foreach (var member in members)
-        {
-            await _memberRepository.DeleteAsync(member);
-        }
-
         var forklifts = _forkliftRepository.Query().Where(f => f.TeamId == id).ToList();
         foreach (var forklift in forklifts)
         {
@@ -82,27 +73,27 @@ public class TeamService : ITeamService
         await _teamRepository.DeleteAsync(team);
     }
 
-    public async Task<TeamMember?> UpdateMemberAsync(Guid teamId, Guid memberId, TeamMember member)
+    public async Task<Personnel?> UpdateMemberAsync(Guid teamId, Guid memberId, Personnel member)
     {
-        var existingMember = await _memberRepository.GetByIdAsync(memberId);
+        var existingMember = await _personnelRepository.GetByIdAsync(memberId);
         if (existingMember == null || existingMember.TeamId != teamId)
             return null;
 
-        existingMember.MemberType = member.MemberType;
-        existingMember.MemberName = member.MemberName;
+        existingMember.Name = member.Name;
         existingMember.Badge = member.Badge;
 
-        await _memberRepository.UpdateAsync(existingMember);
+        await _personnelRepository.UpdateAsync(existingMember);
         return existingMember;
     }
 
     public async Task<bool> DeleteMemberAsync(Guid teamId, Guid memberId)
     {
-        var member = await _memberRepository.GetByIdAsync(memberId);
+        var member = await _personnelRepository.GetByIdAsync(memberId);
         if (member == null || member.TeamId != teamId)
             return false;
 
-        await _memberRepository.DeleteAsync(member);
+        member.TeamId = null;
+        await _personnelRepository.UpdateAsync(member);
         return true;
     }
 
@@ -113,7 +104,7 @@ public class TeamService : ITeamService
         if (team == null)
             return (0, 0, 0, 0, 0, 0);
 
-        var totalMembers = _memberRepository.Query().Count(m => m.TeamId == teamId);
+        var totalMembers = _personnelRepository.Query().Count(p => p.TeamId == teamId);
 
         var events = (await GetTeamEventsAsync(teamId, startTime, endTime)).ToList();
         var totalEvents = events.Count;
@@ -142,25 +133,22 @@ public class TeamService : ITeamService
         return await _teamRepository.GetAllAsync();
     }
 
-    public async Task<TeamMember> AddMemberAsync(Guid teamId, TeamMember member)
+    public async Task<Personnel> AddMemberAsync(Guid teamId, Personnel member)
     {
         member.Id = Guid.NewGuid();
         member.TeamId = teamId;
-        return await _memberRepository.AddAsync(member);
+        member.CreatedAt = DateTime.UtcNow;
+        member.Status = PersonnelStatus.Offline;
+        return await _personnelRepository.AddAsync(member);
     }
 
-    public async Task<IEnumerable<TeamMember>> GetMembersAsync(Guid teamId)
+    public async Task<IEnumerable<Personnel>> GetMembersAsync(Guid teamId)
     {
-        return await Task.FromResult(_memberRepository.Query().Where(m => m.TeamId == teamId).ToList());
+        return await Task.FromResult(_personnelRepository.Query().Where(p => p.TeamId == teamId).ToList());
     }
 
     public async Task<IEnumerable<CollisionWarning>> GetTeamEventsAsync(Guid teamId, DateTime? startTime = null, DateTime? endTime = null)
     {
-        var memberBadges = _memberRepository.Query()
-            .Where(m => m.TeamId == teamId)
-            .Select(m => m.Badge)
-            .ToHashSet();
-
         var forkliftIds = _forkliftRepository.Query()
             .Where(f => f.TeamId == teamId)
             .Select(f => f.Id)

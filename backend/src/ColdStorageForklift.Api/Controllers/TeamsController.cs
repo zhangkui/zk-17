@@ -31,7 +31,7 @@ public class TeamsController : ControllerBase
         if (team == null) return NotFound();
 
         var members = await _teamService.GetMembersAsync(id);
-        var memberDtos = members.Select(m => new TeamMemberDto(m.Id, m.TeamId, m.MemberType, m.MemberName, m.Badge));
+        var memberDtos = members.Select(m => new TeamMemberDto(m.Id, m.TeamId!.Value, MemberType.Worker, m.Name, m.Badge));
 
         return Ok(new TeamDetailDto(
             team.Id,
@@ -87,7 +87,7 @@ public class TeamsController : ControllerBase
         if (team == null) return NotFound();
 
         var members = await _teamService.GetMembersAsync(id);
-        var dtos = members.Select(m => new TeamMemberDto(m.Id, m.TeamId, m.MemberType, m.MemberName, m.Badge));
+        var dtos = members.Select(m => new TeamMemberDto(m.Id, m.TeamId!.Value, MemberType.Worker, m.Name, m.Badge));
         return Ok(dtos);
     }
 
@@ -97,14 +97,13 @@ public class TeamsController : ControllerBase
         var team = await _teamService.GetTeamByIdAsync(id);
         if (team == null) return NotFound();
 
-        var member = new TeamMember
+        var member = new Personnel
         {
-            MemberType = request.Type,
-            MemberName = request.MemberName,
+            Name = request.MemberName,
             Badge = request.Badge
         };
         var created = await _teamService.AddMemberAsync(id, member);
-        return Ok(new TeamMemberDto(created.Id, created.TeamId, created.MemberType, created.MemberName, created.Badge));
+        return Ok(new TeamMemberDto(created.Id, created.TeamId!.Value, MemberType.Worker, created.Name, created.Badge));
     }
 
     [HttpPut("{id:guid}/members/{memberId:guid}")]
@@ -113,17 +112,16 @@ public class TeamsController : ControllerBase
         var team = await _teamService.GetTeamByIdAsync(id);
         if (team == null) return NotFound();
 
-        var member = new TeamMember
+        var member = new Personnel
         {
-            MemberType = request.MemberType,
-            MemberName = request.MemberName,
+            Name = request.MemberName,
             Badge = request.Badge
         };
 
         var updated = await _teamService.UpdateMemberAsync(id, memberId, member);
         if (updated == null) return NotFound();
 
-        return Ok(new TeamMemberDto(updated.Id, updated.TeamId, updated.MemberType, updated.MemberName, updated.Badge));
+        return Ok(new TeamMemberDto(updated.Id, updated.TeamId!.Value, MemberType.Worker, updated.Name, updated.Badge));
     }
 
     [HttpDelete("{id:guid}/members/{memberId:guid}")]
