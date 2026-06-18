@@ -38,7 +38,7 @@ public class AppDbContext : DbContext
             entity.HasMany(e => e.BlindSpotZones)
                 .WithOne(b => b.Zone)
                 .HasForeignKey(b => b.ZoneId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.SetNull);
             entity.HasMany(e => e.CollisionWarnings)
                 .WithOne(w => w.Zone)
                 .HasForeignKey(w => w.ZoneId)

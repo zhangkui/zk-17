@@ -18,15 +18,18 @@ public class BlindSpotService : IBlindSpotService
     private readonly IRepository<BlindSpotZone> _blindSpotRepository;
     private readonly IRepository<Forklift> _forkliftRepository;
     private readonly IRepository<Personnel> _personnelRepository;
+    private readonly IRepository<Zone> _zoneRepository;
 
     public BlindSpotService(
         IRepository<BlindSpotZone> blindSpotRepository,
         IRepository<Forklift> forkliftRepository,
-        IRepository<Personnel> personnelRepository)
+        IRepository<Personnel> personnelRepository,
+        IRepository<Zone> zoneRepository)
     {
         _blindSpotRepository = blindSpotRepository;
         _forkliftRepository = forkliftRepository;
         _personnelRepository = personnelRepository;
+        _zoneRepository = zoneRepository;
     }
 
     public async Task<BlindSpotZone> CalculateBlindSpotAsync(Guid forkliftId)
@@ -45,6 +48,14 @@ public class BlindSpotService : IBlindSpotService
         blindSpot.Direction = forklift.Direction;
         blindSpot.DetectedAt = DateTime.UtcNow;
         blindSpot.IsActive = true;
+
+        var containingZone = _zoneRepository.Query()
+            .FirstOrDefault(z =>
+                forklift.CurrentPositionX >= z.PositionX &&
+                forklift.CurrentPositionX <= z.PositionX + z.Width &&
+                forklift.CurrentPositionY >= z.PositionY &&
+                forklift.CurrentPositionY <= z.PositionY + z.Height);
+        blindSpot.ZoneId = containingZone?.Id;
 
         var personnelInBlindSpot = await IdentifyPersonnelInBlindSpotAsync(forkliftId);
         blindSpot.RiskLevel = personnelInBlindSpot.Count switch

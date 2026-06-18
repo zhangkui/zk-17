@@ -4,7 +4,7 @@ public class BlindSpotZone
 {
     public Guid Id { get; set; }
     public Guid ForkliftId { get; set; }
-    public Guid ZoneId { get; set; }
+    public Guid? ZoneId { get; set; }
     public double CenterX { get; set; }
     public double CenterY { get; set; }
     public double Radius { get; set; }

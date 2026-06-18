@@ -287,14 +287,16 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       if (!z.obstacles) continue;
       for (const obs of z.obstacles) {
         const obsColor = this.obstacleColor(obs.type);
+        const ox = z.x + obs.x;
+        const oy = z.y + obs.y;
         ctx.fillStyle = obsColor.fill;
         ctx.strokeStyle = obsColor.stroke;
         ctx.lineWidth = 1.5;
-        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-        ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+        ctx.fillRect(ox, oy, obs.width, obs.height);
+        ctx.strokeRect(ox, oy, obs.width, obs.height);
         ctx.fillStyle = obsColor.stroke;
         ctx.font = '10px sans-serif';
-        ctx.fillText(obs.name, obs.x + 3, obs.y + 12);
+        ctx.fillText(obs.name, ox + 3, oy + 12);
       }
     }
 
